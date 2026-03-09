@@ -1,0 +1,85 @@
+// ============================================
+// Bot Oscar - Router de la API REST
+// Define todas las rutas y middleware
+// ============================================
+package api
+
+import (
+	"net/http"
+
+	"bot-oscar/internal/ai"
+	"bot-oscar/internal/cache"
+	"bot-oscar/internal/db"
+	"bot-oscar/internal/trading"
+)
+
+// Server contiene las dependencias compartidas por los handlers
+type Server struct {
+	db       *db.Database
+	cache    *cache.Cache
+	engine   *trading.Engine
+	deepseek *ai.DeepSeekClient
+}
+
+// NewRouter crea el router HTTP con todas las rutas de la API
+func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient) http.Handler {
+	mux := http.NewServeMux()
+
+	server := &Server{
+		db:       database,
+		cache:    redisCache,
+		engine:   engine,
+		deepseek: deepseekClient,
+	}
+
+	// --- Rutas de salud ---
+	mux.HandleFunc("GET /api/salud", server.handleHealth)
+
+	// --- Rutas de activos ---
+	mux.HandleFunc("GET /api/activos", server.handleGetAssets)
+	mux.HandleFunc("GET /api/activos/{id}/precios", server.handleGetPrices)
+
+	// --- Rutas de señales ---
+	mux.HandleFunc("GET /api/senales", server.handleGetSignals)
+
+	// --- Rutas de operaciones ---
+	mux.HandleFunc("GET /api/operaciones", server.handleGetOperations)
+
+	// --- Rutas del portafolio ---
+	mux.HandleFunc("GET /api/portafolio", server.handleGetPortfolio)
+
+	// --- Rutas de configuración ---
+	mux.HandleFunc("GET /api/configuracion", server.handleGetConfig)
+	mux.HandleFunc("POST /api/configuracion", server.handleUpdateConfig)
+
+	// --- Rutas del bot ---
+	mux.HandleFunc("GET /api/bot/estado", server.handleGetBotStatus)
+	mux.HandleFunc("POST /api/bot/iniciar", server.handleStartBot)
+	mux.HandleFunc("POST /api/bot/detener", server.handleStopBot)
+
+	// --- Rutas de indicadores ---
+	mux.HandleFunc("GET /api/indicadores/{simbolo}", server.handleGetIndicators)
+
+	// --- Rutas de IA (DeepSeek) ---
+	mux.HandleFunc("POST /api/ia/senal/{simbolo}", server.handleGenerateAISignal)
+
+	// Aplicar middleware CORS para desarrollo
+	return corsMiddleware(mux)
+}
+
+// corsMiddleware permite peticiones cross-origin (necesario para desarrollo local)
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Responder inmediatamente a preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}

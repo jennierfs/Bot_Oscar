@@ -1,0 +1,132 @@
+/* ============================================
+   Bot Oscar - Estilos globales
+   Tema oscuro con acentos dorados
+   ============================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Estilos base ---- */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: #0D0D0D;
+  color: #FFFFFF;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Scrollbar personalizado (tema oscuro) ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0D0D0D;
+}
+::-webkit-scrollbar-thumb {
+  background: #1A1A2E;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F0B90B;
+}
+
+/* ---- Clases de utilidad personalizadas ---- */
+@layer components {
+  /* Tarjeta con efecto glassmorphism */
+  .glass-card {
+    @apply bg-oscar-dark/70 backdrop-blur-md border border-gray-700/50 rounded-xl;
+    transition: all 0.3s ease;
+  }
+  .glass-card:hover {
+    @apply border-oscar-gold/30;
+    box-shadow: 0 0 20px rgba(240, 185, 11, 0.08);
+  }
+
+  /* Efecto de brillo dorado */
+  .glow-gold {
+    box-shadow: 0 0 15px rgba(240, 185, 11, 0.25);
+  }
+
+  /* Gradiente de fondo sutil */
+  .bg-gradient-dark {
+    background: linear-gradient(135deg, #0D0D0D 0%, #1A1A2E 50%, #0D0D0D 100%);
+  }
+
+  /* Badge de señal */
+  .badge-compra {
+    @apply bg-oscar-green/20 text-oscar-green border border-oscar-green/30 px-3 py-1 rounded-full text-xs font-bold;
+  }
+  .badge-venta {
+    @apply bg-oscar-red/20 text-oscar-red border border-oscar-red/30 px-3 py-1 rounded-full text-xs font-bold;
+  }
+  .badge-mantener {
+    @apply bg-oscar-gold/20 text-oscar-gold border border-oscar-gold/30 px-3 py-1 rounded-full text-xs font-bold;
+  }
+
+  /* Barra de fuerza de señal */
+  .strength-bar {
+    @apply h-2 rounded-full;
+    background: linear-gradient(90deg, #FF1744 0%, #F0B90B 50%, #00C853 100%);
+  }
+
+  /* Botón principal dorado */
+  .btn-gold {
+    @apply bg-oscar-gold text-oscar-black font-bold px-4 py-2 rounded-lg;
+    transition: all 0.2s ease;
+  }
+  .btn-gold:hover {
+    @apply bg-oscar-gold-dark;
+    box-shadow: 0 0 20px rgba(240, 185, 11, 0.3);
+  }
+
+  /* Botón de peligro */
+  .btn-danger {
+    @apply bg-oscar-red/20 text-oscar-red border border-oscar-red/30 font-bold px-4 py-2 rounded-lg;
+    transition: all 0.2s ease;
+  }
+  .btn-danger:hover {
+    @apply bg-oscar-red/30;
+  }
+}
+
+/* ---- Animación de pulso para indicador de estado ---- */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ---- Animación suave de entrada ---- */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* ---- Scrollbar compacto para dropdowns ---- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
