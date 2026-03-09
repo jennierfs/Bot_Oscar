@@ -6,6 +6,7 @@
 //   - Soporta acciones (LMT, RTX, BA...) Y commodities (GC=F, CL=F...)
 //   - Límite generoso (miles de peticiones por día)
 //   - Datos OHLCV diarios históricos
+//
 // ============================================
 package market
 

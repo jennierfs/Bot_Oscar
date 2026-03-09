@@ -33,20 +33,20 @@ type DeepSeekClient struct {
 
 // AISignalResponse es la respuesta estructurada que devolvemos al frontend
 type AISignalResponse struct {
-	Symbol     string  `json:"symbol"`
-	AssetName  string  `json:"assetName"`
-	Signal     string  `json:"signal"`      // "COMPRA", "VENTA", "MANTENER"
-	Confidence int     `json:"confidence"`   // 0-100
-	EntryPrice float64 `json:"entryPrice"`
-	StopLoss   float64 `json:"stopLoss"`
-	TakeProfit float64 `json:"takeProfit"`
-	Timeframe  string  `json:"timeframe"`    // "corto", "medio", "largo"
-	RiskLevel  string  `json:"riskLevel"`    // "bajo", "medio", "alto"
-	Analysis   string  `json:"analysis"`     // Análisis detallado en español
-	KeyFactors []string `json:"keyFactors"`  // Factores clave de la decisión
-	Disclaimer string  `json:"disclaimer"`   // Advertencia legal
-	Timestamp  string  `json:"timestamp"`
-	Model      string  `json:"model"`        // Modelo de IA usado
+	Symbol     string   `json:"symbol"`
+	AssetName  string   `json:"assetName"`
+	Signal     string   `json:"signal"`     // "COMPRA", "VENTA", "MANTENER"
+	Confidence int      `json:"confidence"` // 0-100
+	EntryPrice float64  `json:"entryPrice"`
+	StopLoss   float64  `json:"stopLoss"`
+	TakeProfit float64  `json:"takeProfit"`
+	Timeframe  string   `json:"timeframe"`  // "corto", "medio", "largo"
+	RiskLevel  string   `json:"riskLevel"`  // "bajo", "medio", "alto"
+	Analysis   string   `json:"analysis"`   // Análisis detallado en español
+	KeyFactors []string `json:"keyFactors"` // Factores clave de la decisión
+	Disclaimer string   `json:"disclaimer"` // Advertencia legal
+	Timestamp  string   `json:"timestamp"`
+	Model      string   `json:"model"` // Modelo de IA usado
 }
 
 // deepseekRequest estructura de petición al API de DeepSeek (compatible OpenAI)

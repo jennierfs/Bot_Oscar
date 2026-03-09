@@ -3,9 +3,10 @@
 // Interfaz y generador de datos demo como último recurso
 //
 // Prioridad de proveedores:
-//   1. Yahoo Finance (GRATIS, sin API key, acciones + commodities)
-//   2. Alpha Vantage (si se configura una API key real)
-//   3. Demo (solo si todo lo anterior falla)
+//  1. Yahoo Finance (GRATIS, sin API key, acciones + commodities)
+//  2. Alpha Vantage (si se configura una API key real)
+//  3. Demo (solo si todo lo anterior falla)
+//
 // ============================================
 package market
 
