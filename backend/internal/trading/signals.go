@@ -299,8 +299,10 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 //   - Codicia Extrema (81-100) → +15 puntos (confirma presión alcista fuerte)
 //
 // Resultado: el sentimiento REFUERZA la dirección.
-//   Si hay miedo → más probable que sea VENTA.
-//   Si hay codicia → más probable que sea COMPRA.
+//
+//	Si hay miedo → más probable que sea VENTA.
+//	Si hay codicia → más probable que sea COMPRA.
+//
 // ============================================
 func AdjustScoreWithSentiment(score int, fg *FearGreedResult) (int, string, string) {
 	if fg == nil {

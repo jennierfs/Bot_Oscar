@@ -503,7 +503,7 @@ func (c *DeepSeekClient) callAPI(ctx context.Context, prompt string) (string, er
 		Model: "deepseek-chat",
 		Messages: []deepseekMessage{
 			{
-				Role:    "system",
+				Role: "system",
 				Content: `Eres un trader institucional con más de 20 años de experiencia en mercados financieros. Tu especialidad es análisis técnico avanzado, lectura de price action y patrones de velas japonesas.
 
 REGLAS INQUEBRANTABLES de tu trading:
