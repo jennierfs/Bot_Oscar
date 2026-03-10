@@ -334,11 +334,14 @@ Descripción: %s
 Desglose por factor (datos SOLO de %s, NO del mercado general):
 %s
 IMPORTANTE sobre el sentimiento:
-- Si el sentimiento está en "Miedo Extremo" (0-20), históricamente es zona de oportunidad de compra.
-- Si está en "Codicia Extrema" (80-100), históricamente precede correcciones.
-- El sentimiento CONFIRMA o CONTRADICE los indicadores técnicos. Úsalo como filtro adicional.
-- Si los indicadores dicen COMPRA pero el sentimiento es "Codicia Extrema", ten precaución (posible techo).
-- Si los indicadores dicen VENTA pero el sentimiento es "Miedo Extremo", ten precaución (posible suelo).
+- Miedo Extremo (0-20) = CONFIRMA presión bajista fuerte → aumenta probabilidad de VENTA.
+- Miedo (21-40) = presión bajista moderada → sesgo hacia VENTA.
+- Neutral (41-60) = sin influencia significativa.
+- Codicia (61-80) = presión alcista moderada → sesgo hacia COMPRA.
+- Codicia Extrema (81-100) = CONFIRMA presión alcista fuerte → aumenta probabilidad de COMPRA.
+- El sentimiento REFUERZA la dirección. Si hay miedo y los indicadores son bajistas = señal de VENTA más fuerte.
+- Si hay codicia y los indicadores son alcistas = señal de COMPRA más fuerte.
+- La puntuación del sistema YA fue ajustada con este sentimiento.
 `, asset.Symbol, fearGreed.Score, fearGreed.Label, fearGreed.Description,
 			asset.Symbol, componentDetails.String())
 	} else {
@@ -412,7 +415,7 @@ Confluencia: %d/100 → %s
 5. Busca confluencia de al menos 3-4 indicadores alineados.
 6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = ignorar.
 7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
-8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. Miedo Extremo (0-20) = posible oportunidad contraria. Codicia Extrema (80-100) = posible corrección. Usa el sentimiento para ajustar tu confianza: si todo apunta a COMPRA pero el sentimiento es Codicia Extrema, baja tu confidence. Si todo apunta a VENTA pero hay Miedo Extremo, sé cauteloso. INCLUYE el sentimiento en tu análisis y en keyFactors.
+8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. El sentimiento CONFIRMA la dirección: Miedo (0-40) = CONFIRMA presión bajista → más probabilidad de VENTA. Codicia (60-100) = CONFIRMA presión alcista → más probabilidad de COMPRA. Si el sentimiento es Miedo y los indicadores son bajistas, AUMENTA tu confidence en VENTA. Si el sentimiento es Codicia y los indicadores son alcistas, AUMENTA tu confidence en COMPRA. Si hay contradicción (miedo + indicadores alcistas, o codicia + indicadores bajistas), BAJA tu confidence y considera MANTENER. INCLUYE el sentimiento en tu análisis y en keyFactors.
 9. Sé HONESTO: si hay contradicción entre indicadores, patrones y sentimiento, di "MANTENER".
 10. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
 
@@ -501,7 +504,19 @@ func (c *DeepSeekClient) callAPI(ctx context.Context, prompt string) (string, er
 		Messages: []deepseekMessage{
 			{
 				Role:    "system",
-				Content: "Eres un analista técnico de mercados financieros experto con más de 20 años de experiencia. Solo respondes en JSON válido. Eres honesto y realista, nunca garantizas ganancias. Si los datos son ambiguos, recomiendas MANTENER.",
+				Content: `Eres un trader institucional con más de 20 años de experiencia en mercados financieros. Tu especialidad es análisis técnico avanzado, lectura de price action y patrones de velas japonesas.
+
+REGLAS INQUEBRANTABLES de tu trading:
+1. NUNCA operas contra la tendencia principal (EMA200). Si el precio está debajo de EMA200, SOLO buscas VENTAS.
+2. SIEMPRE necesitas confluencia de mínimo 3 indicadores alineados para dar señal.
+3. Si el volumen no confirma el movimiento, la señal es DÉBIL — baja tu confianza.
+4. NUNCA persigues el precio. Si ya subió mucho (RSI > 75), esperas pullback.
+5. El ratio riesgo/beneficio MÍNIMO es 1:2. Si no hay suficiente recorrido, NO operas.
+6. Eres HONESTO: si hay contradicción entre indicadores, dices MANTENER sin dudarlo.
+7. El sentimiento (Fear & Greed) CONFIRMA la dirección: miedo = presión bajista, codicia = presión alcista.
+8. SIEMPRE proporcionas SL y TP numéricos realistas basados en soportes/resistencias reales.
+
+Solo respondes en JSON válido. Nunca garantizas ganancias.`,
 			},
 			{
 				Role:    "user",
@@ -600,6 +615,45 @@ func parseAIResponse(raw string, asset models.Asset, indicators *models.Indicato
 	if parsed.StopLoss <= 0 || parsed.TakeProfit <= 0 {
 		log.Printf("⚠️ [%s] DeepSeek no calculó SL/TP, usando cálculo automático por Bollinger/SMA", asset.Symbol)
 		calculateFallbackLevels(&parsed, indicators)
+	}
+
+	// === VALIDACIÓN DE COHERENCIA SL/TP ===
+	// Un trader profesional NUNCA pone un SL en el lado equivocado
+	entry := parsed.EntryPrice
+	if parsed.Signal == "COMPRA" {
+		// COMPRA: SL debe estar DEBAJO del precio, TP ENCIMA
+		if parsed.StopLoss >= entry {
+			log.Printf("⚠️ [%s] SL incoherente para COMPRA (SL=%.2f >= Entry=%.2f), recalculando", asset.Symbol, parsed.StopLoss, entry)
+			calculateFallbackLevels(&parsed, indicators)
+		}
+		if parsed.TakeProfit <= entry {
+			log.Printf("⚠️ [%s] TP incoherente para COMPRA (TP=%.2f <= Entry=%.2f), recalculando", asset.Symbol, parsed.TakeProfit, entry)
+			risk := entry - parsed.StopLoss
+			if risk > 0 {
+				parsed.TakeProfit = math.Round((entry+risk*2)*100) / 100
+			}
+		}
+	} else if parsed.Signal == "VENTA" {
+		// VENTA: SL debe estar ENCIMA del precio, TP DEBAJO
+		if parsed.StopLoss <= entry {
+			log.Printf("⚠️ [%s] SL incoherente para VENTA (SL=%.2f <= Entry=%.2f), recalculando", asset.Symbol, parsed.StopLoss, entry)
+			calculateFallbackLevels(&parsed, indicators)
+		}
+		if parsed.TakeProfit >= entry {
+			log.Printf("⚠️ [%s] TP incoherente para VENTA (TP=%.2f >= Entry=%.2f), recalculando", asset.Symbol, parsed.TakeProfit, entry)
+			risk := parsed.StopLoss - entry
+			if risk > 0 {
+				parsed.TakeProfit = math.Round((entry-risk*2)*100) / 100
+			}
+		}
+	}
+
+	// Verificación final: SL y TP deben ser > 0
+	if parsed.StopLoss <= 0 {
+		parsed.StopLoss = math.Round(entry*0.96*100) / 100 // 4% por defecto
+	}
+	if parsed.TakeProfit <= 0 {
+		parsed.TakeProfit = math.Round(entry*1.08*100) / 100 // 8% por defecto
 	}
 
 	return &AISignalResponse{

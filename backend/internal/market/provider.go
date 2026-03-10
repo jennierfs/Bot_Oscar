@@ -12,6 +12,7 @@ package market
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -104,9 +105,10 @@ func (m *MultiProvider) GetPrices(ctx context.Context, symbol string, days int) 
 		log.Printf("⚠️ [%s] Yahoo Finance también falló: %v", symbol, err)
 	}
 
-	// 3. Último recurso: datos demo (solo si TODAS las fuentes fallaron)
-	log.Printf("🟡 [%s] Usando datos DEMO - todas las fuentes reales fallaron", symbol)
-	return m.demo.GetPrices(ctx, symbol, days)
+	// 3. NO usar datos demo para señales — señales deben ser 100% reales
+	// Un trader profesional NUNCA opera con datos inventados
+	log.Printf("🔴 [%s] TODAS las fuentes de datos reales fallaron — NO se generarán señales", symbol)
+	return nil, fmt.Errorf("sin datos reales disponibles para %s: todas las fuentes (Twelve Data + Yahoo Finance) fallaron", symbol)
 }
 
 // ============================================

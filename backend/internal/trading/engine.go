@@ -314,6 +314,23 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	currentPrice := closes[len(closes)-1]
 	score, signalType, reason := ScoreSignal(*indValues, currentPrice)
 
+	// ============================================
+	// Ajustar puntuación con sentimiento Fear & Greed
+	// Miedo → baja el score (más probabilidad de VENTA)
+	// Codicia → sube el score (más probabilidad de COMPRA)
+	// ============================================
+	fearGreed := CalculateFearGreed(*indValues, currentPrice, asset.Name)
+	adjustedScore, adjustedSignal, sentimentReason := AdjustScoreWithSentiment(score, &fearGreed)
+	if sentimentReason != "" {
+		if reason != "" {
+			reason = reason + " | " + sentimentReason
+		} else {
+			reason = sentimentReason
+		}
+	}
+	score = adjustedScore
+	signalType = adjustedSignal
+
 	indValues.Score = score
 	indValues.Signal = signalType
 

@@ -324,6 +324,16 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 			fearGreed := trading.CalculateFearGreed(*indicators, currentPrice, asset.Name)
 			log.Printf("😨 [%s] Sentimiento Fear & Greed: %d/100 → %s", asset.Symbol, fearGreed.Score, fearGreed.Label)
 
+			// 4b. Ajustar puntuación de confluencia con el sentimiento
+			//     Miedo → baja el score (más probabilidad de VENTA)
+			//     Codicia → sube el score (más probabilidad de COMPRA)
+			oldScore := indicators.Score
+			newScore, newSignal, sentimentReason := trading.AdjustScoreWithSentiment(indicators.Score, &fearGreed)
+			indicators.Score = newScore
+			indicators.Signal = newSignal
+			log.Printf("📊 [%s] Score ajustado por sentimiento: %d → %d (%s) | %s",
+				asset.Symbol, oldScore, newScore, newSignal, sentimentReason)
+
 			// 5. Enviar a DeepSeek para análisis inteligente (con patrones + sentimiento)
 			aiSignal, err := s.deepseek.GenerateSignal(r.Context(), asset, indicators, prices, patternAnalysis, &fearGreed)
 			if err != nil {

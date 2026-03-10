@@ -286,3 +286,65 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 
 	return score, signalType, reason
 }
+
+// ============================================
+// AdjustScoreWithSentiment ajusta la puntuación de confluencia
+// basado en el sentimiento Fear & Greed del activo.
+//
+// Lógica DIRECCIONAL (NO contrarian):
+//   - Miedo Extremo (0-20)  → -15 puntos (confirma presión bajista fuerte)
+//   - Miedo (21-40)         → -8 puntos  (confirma presión bajista moderada)
+//   - Neutral (41-60)       → 0 puntos   (sin influencia)
+//   - Codicia (61-80)       → +8 puntos  (confirma presión alcista moderada)
+//   - Codicia Extrema (81-100) → +15 puntos (confirma presión alcista fuerte)
+//
+// Resultado: el sentimiento REFUERZA la dirección.
+//   Si hay miedo → más probable que sea VENTA.
+//   Si hay codicia → más probable que sea COMPRA.
+// ============================================
+func AdjustScoreWithSentiment(score int, fg *FearGreedResult) (int, string, string) {
+	if fg == nil {
+		return score, classifySignal(score), ""
+	}
+
+	adjustment := 0
+	reason := ""
+
+	switch {
+	case fg.Score <= 20: // Miedo Extremo → fuerte presión bajista
+		adjustment = -15
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → fuerte presión BAJISTA, aumenta probabilidad de VENTA", fg.Label, fg.Score)
+	case fg.Score <= 40: // Miedo → presión bajista moderada
+		adjustment = -8
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión bajista moderada", fg.Label, fg.Score)
+	case fg.Score <= 60: // Neutral → sin influencia
+		adjustment = 0
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → neutral, sin ajuste", fg.Label, fg.Score)
+	case fg.Score <= 80: // Codicia → presión alcista moderada
+		adjustment = +8
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión alcista moderada", fg.Label, fg.Score)
+	default: // Codicia Extrema → fuerte presión alcista
+		adjustment = +15
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → fuerte presión ALCISTA, aumenta probabilidad de COMPRA", fg.Label, fg.Score)
+	}
+
+	score += adjustment
+	if score < 0 {
+		score = 0
+	}
+	if score > 100 {
+		score = 100
+	}
+
+	return score, classifySignal(score), reason
+}
+
+// classifySignal determina el tipo de señal basado en la puntuación
+func classifySignal(score int) string {
+	if score >= 65 {
+		return "COMPRA"
+	} else if score <= 35 {
+		return "VENTA"
+	}
+	return "MANTENER"
+}
