@@ -84,17 +84,38 @@ type BotStatus struct {
 }
 
 // IndicatorValues contiene los valores calculados de todos los indicadores
+// Un trader profesional necesita TODOS estos datos para tomar decisiones
 type IndicatorValues struct {
-	Symbol    string          `json:"symbol"`
-	RSI       float64         `json:"rsi"`
-	MACD      MACDValues      `json:"macd"`
-	SMA50     float64         `json:"sma50"`
-	SMA200    float64         `json:"sma200"`
-	EMA12     float64         `json:"ema12"`
-	EMA26     float64         `json:"ema26"`
-	Bollinger BollingerValues `json:"bollinger"`
-	Score     int             `json:"score"`  // Puntuación de confluencia 0-100
-	Signal    string          `json:"signal"` // "COMPRA", "VENTA", "MANTENER"
+	Symbol string `json:"symbol"`
+
+	// === OSCILADORES ===
+	RSI  float64    `json:"rsi"`  // RSI(14) - Fuerza relativa
+	MACD MACDValues `json:"macd"` // MACD(12,26,9) - Momentum
+
+	// === MEDIAS MÓVILES SIMPLES ===
+	SMA50  float64 `json:"sma50"`  // Tendencia intermedia
+	SMA200 float64 `json:"sma200"` // Tendencia principal
+
+	// === MEDIAS MÓVILES EXPONENCIALES ===
+	EMA12  float64 `json:"ema12"`  // Cruce rápido (componente MACD)
+	EMA26  float64 `json:"ema26"`  // Cruce lento (componente MACD)
+	EMA21  float64 `json:"ema21"`  // Pullbacks - muy usada por institucionales
+	EMA50  float64 `json:"ema50"`  // Tendencia intermedia (más reactiva que SMA50)
+	EMA200 float64 `json:"ema200"` // Tendencia principal (la más importante)
+
+	// === VOLATILIDAD ===
+	Bollinger BollingerValues `json:"bollinger"` // Bandas de Bollinger(20,2)
+	ATR       float64         `json:"atr"`       // Average True Range(14) - Volatilidad real
+
+	// === VOLUMEN ===
+	VWAP         float64 `json:"vwap"`         // Precio promedio ponderado por volumen
+	VolumenProm  int64   `json:"volumenProm"`  // Volumen promedio de 20 días
+	VolumenHoy   int64   `json:"volumenHoy"`   // Volumen del último día
+	VolumenRatio float64 `json:"volumenRatio"` // Ratio volumen hoy / promedio (>1.5 = pico)
+
+	// === RESULTADO ===
+	Score  int    `json:"score"`  // Puntuación de confluencia 0-100
+	Signal string `json:"signal"` // "COMPRA", "VENTA", "MANTENER"
 }
 
 // MACDValues contiene las 3 líneas del MACD

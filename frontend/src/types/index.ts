@@ -80,24 +80,44 @@ export interface BotStatus {
   activeSignals: number;
 }
 
-// Valores calculados de indicadores
+// Valores calculados de indicadores técnicos profesionales
 export interface IndicatorValues {
   symbol: string;
+
+  // Osciladores
   rsi: number;
   macd: {
     macd: number;
     signal: number;
     histogram: number;
   };
+
+  // Medias Móviles Simples
   sma50: number;
   sma200: number;
+
+  // Medias Móviles Exponenciales
   ema12: number;
   ema26: number;
+  ema21: number;   // Pullbacks institucionales
+  ema50: number;   // Tendencia intermedia
+  ema200: number;  // Tendencia principal (la más importante)
+
+  // Volatilidad
   bollinger: {
     upper: number;
     middle: number;
     lower: number;
   };
+  atr: number;     // Average True Range - volatilidad real
+
+  // Volumen
+  vwap: number;         // Precio promedio ponderado por volumen
+  volumenProm: number;  // Volumen promedio 20 días
+  volumenHoy: number;   // Volumen del último día
+  volumenRatio: number; // Ratio volumen hoy / promedio
+
+  // Resultado
   score: number;
   signal: string;
 }

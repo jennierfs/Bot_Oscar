@@ -20,6 +20,7 @@ services:
       - DB_NAME=${DB_NAME}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
       - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     depends_on:

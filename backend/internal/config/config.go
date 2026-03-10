@@ -26,8 +26,9 @@ type Config struct {
 	RedisPort string
 
 	// APIs externas
-	AlphaVantageAPIKey string
-	DeepSeekAPIKey     string
+	TwelveDataAPIKey   string // API key de Twelve Data (fuente principal)
+	AlphaVantageAPIKey string // API key de Alpha Vantage (respaldo legacy)
+	DeepSeekAPIKey     string // API key de DeepSeek AI
 
 	// Trading - valores por defecto que se sobreescriben desde la BD
 	RiskPerTrade     float64 // Porcentaje de riesgo por operación
@@ -48,6 +49,7 @@ func Load() *Config {
 		DBName:             getEnv("DB_NAME", "bot_oscar_db"),
 		RedisHost:          getEnv("REDIS_HOST", "localhost"),
 		RedisPort:          getEnv("REDIS_PORT", "6379"),
+		TwelveDataAPIKey:   getEnv("TWELVE_DATA_API_KEY", ""),
 		AlphaVantageAPIKey: getEnv("ALPHA_VANTAGE_API_KEY", "demo"),
 		DeepSeekAPIKey:     getEnv("DEEPSEEK_API_KEY", ""),
 		RiskPerTrade:       getEnvFloat("RISK_PER_TRADE", 2.0),

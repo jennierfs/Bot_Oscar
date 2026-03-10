@@ -194,8 +194,8 @@ func (e *Engine) GetPrices(ctx context.Context, symbol string, days int) ([]mode
 // AnalyzeAsset analiza un activo individual calculando todos los indicadores
 // Retorna: señal (si hay), valores de indicadores, error
 func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.Signal, *models.IndicatorValues, error) {
-	// Obtener precios históricos (mínimo 250 para SMA200 + margen)
-	prices, err := e.provider.GetPrices(ctx, asset.Symbol, 250)
+	// Obtener precios históricos (mínimo 300 para EMA200 + margen)
+	prices, err := e.provider.GetPrices(ctx, asset.Symbol, 300)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -207,53 +207,81 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	// Guardar precios en la BD para referencia futura
 	e.db.SavePrices(ctx, asset.ID, prices)
 
-	// Extraer precios de cierre para los indicadores
-	closes := make([]float64, len(prices))
+	// Extraer arrays OHLCV para los indicadores
+	n := len(prices)
+	closes := make([]float64, n)
+	highs := make([]float64, n)
+	lows := make([]float64, n)
+	volumes := make([]int64, n)
 	for i, p := range prices {
 		closes[i] = p.Close
+		highs[i] = p.High
+		lows[i] = p.Low
+		volumes[i] = p.Volume
 	}
 
 	// ============================================
-	// Calcular TODOS los indicadores
+	// Calcular TODOS los indicadores profesionales
 	// ============================================
 
-	// Medias Móviles
+	// --- Medias Móviles Simples ---
 	sma50 := indicators.CalculateSMA(closes, 50)
 	sma200 := indicators.CalculateSMA(closes, 200)
-	ema12 := indicators.CalculateEMA(closes, 12)
-	ema26 := indicators.CalculateEMA(closes, 26)
 
-	// RSI (periodo estándar: 14)
-	rsiValues := indicators.CalculateRSI(closes, 14)
+	// --- Medias Móviles Exponenciales ---
+	ema12 := indicators.CalculateEMA(closes, 12)   // Componente MACD rápido
+	ema26 := indicators.CalculateEMA(closes, 26)   // Componente MACD lento
+	ema21 := indicators.CalculateEMA(closes, 21)   // Pullbacks institucionales
+	ema50 := indicators.CalculateEMA(closes, 50)   // Tendencia intermedia
+	ema200 := indicators.CalculateEMA(closes, 200) // Tendencia principal (la más importante)
 
-	// MACD (12, 26, 9 - parámetros estándar)
-	macdResult := indicators.CalculateMACD(closes, 12, 26, 9)
+	// --- Osciladores ---
+	rsiValues := indicators.CalculateRSI(closes, 14)          // RSI estándar
+	macdResult := indicators.CalculateMACD(closes, 12, 26, 9) // MACD estándar
 
-	// Bandas de Bollinger (20, 2.0 - estándar)
-	bollingerResult := indicators.CalculateBollinger(closes, 20, 2.0)
+	// --- Volatilidad ---
+	bollingerResult := indicators.CalculateBollinger(closes, 20, 2.0) // Bollinger estándar
+	atr := CalculateATR(prices, 14)                                   // ATR para volatilidad real
+
+	// --- Volumen ---
+	vwapResult := indicators.CalculateVWAP(highs, lows, closes, volumes, 20) // VWAP de 20 días
 
 	// ============================================
-	// Construir el objeto de indicadores con los últimos valores
+	// Construir el objeto con los últimos valores de cada indicador
 	// ============================================
 	indValues := &models.IndicatorValues{
 		Symbol: asset.Symbol,
+		ATR:    atr,
 	}
 
-	// Último valor de cada indicador (el más reciente)
-	if rsiValues != nil && len(rsiValues) > 0 {
-		indValues.RSI = rsiValues[len(rsiValues)-1]
-	}
+	// Medias Móviles Simples
 	if sma50 != nil && len(sma50) > 0 {
 		indValues.SMA50 = sma50[len(sma50)-1]
 	}
 	if sma200 != nil && len(sma200) > 0 {
 		indValues.SMA200 = sma200[len(sma200)-1]
 	}
+
+	// Medias Móviles Exponenciales
 	if ema12 != nil && len(ema12) > 0 {
 		indValues.EMA12 = ema12[len(ema12)-1]
 	}
 	if ema26 != nil && len(ema26) > 0 {
 		indValues.EMA26 = ema26[len(ema26)-1]
+	}
+	if ema21 != nil && len(ema21) > 0 {
+		indValues.EMA21 = ema21[len(ema21)-1]
+	}
+	if ema50 != nil && len(ema50) > 0 {
+		indValues.EMA50 = ema50[len(ema50)-1]
+	}
+	if ema200 != nil && len(ema200) > 0 {
+		indValues.EMA200 = ema200[len(ema200)-1]
+	}
+
+	// Osciladores
+	if rsiValues != nil && len(rsiValues) > 0 {
+		indValues.RSI = rsiValues[len(rsiValues)-1]
 	}
 	if macdResult != nil && len(macdResult.MACD) > 0 {
 		indValues.MACD = models.MACDValues{
@@ -262,6 +290,8 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 			Histogram: macdResult.Histogram[len(macdResult.Histogram)-1],
 		}
 	}
+
+	// Volatilidad
 	if bollingerResult != nil && len(bollingerResult.Upper) > 0 {
 		indValues.Bollinger = models.BollingerValues{
 			Upper:  bollingerResult.Upper[len(bollingerResult.Upper)-1],
@@ -270,8 +300,16 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 		}
 	}
 
+	// Volumen (VWAP + análisis de volumen)
+	if vwapResult != nil {
+		indValues.VWAP = vwapResult.VWAP
+		indValues.VolumenProm = vwapResult.VolumenProm
+		indValues.VolumenHoy = vwapResult.VolumenHoy
+		indValues.VolumenRatio = vwapResult.VolumenRatio
+	}
+
 	// ============================================
-	// Evaluar confluencia y generar puntuación
+	// Evaluar confluencia profesional y generar puntuación
 	// ============================================
 	currentPrice := closes[len(closes)-1]
 	score, signalType, reason := ScoreSignal(*indValues, currentPrice)
@@ -284,8 +322,6 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	// ============================================
 	minScore := e.config.MinSignalScore
 	if signalType == "COMPRA" && score >= minScore || signalType == "VENTA" && score <= (100-minScore) {
-		// Calcular ATR para posicionar el stop loss
-		atr := CalculateATR(prices, 14)
 		sl := CalculateStopLoss(currentPrice, signalType, atr)
 		tp := CalculateTakeProfit(currentPrice, sl, e.config.RiskRewardRatio)
 

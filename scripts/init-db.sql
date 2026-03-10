@@ -79,11 +79,11 @@ CREATE INDEX IF NOT EXISTS idx_operaciones_activo ON operaciones(activo_id);
 -- Datos iniciales: Activos a monitorear
 -- ============================================
 INSERT INTO activos (simbolo, nombre, tipo) VALUES
-    -- Commodities (Materias Primas)
-    ('GC=F', 'Oro (Gold)', 'commodity'),
-    ('SI=F', 'Plata (Silver)', 'commodity'),
-    ('CL=F', 'Petróleo Crudo (Crude Oil)', 'commodity'),
-    ('NG=F', 'Gas Natural', 'commodity'),
+    -- ETFs de Commodities (disponibles en Twelve Data gratis + TradingView)
+    ('GLD', 'SPDR Gold Trust (Oro)', 'commodity'),
+    ('SLV', 'iShares Silver Trust (Plata)', 'commodity'),
+    ('USO', 'United States Oil Fund (Petróleo)', 'commodity'),
+    ('UNG', 'United States Natural Gas Fund', 'commodity'),
     -- Contratistas Principales de Defensa
     ('LMT', 'Lockheed Martin', 'accion'),
     ('RTX', 'Raytheon Technologies', 'accion'),

@@ -46,9 +46,15 @@ func main() {
 	log.Println("✅ Conectado a Redis")
 
 	// Crear proveedor de datos de mercado
-	// Prioridad: Yahoo Finance (gratis) → Alpha Vantage (si hay key) → Demo
-	provider := market.NewProvider(cfg.AlphaVantageAPIKey, redisCache)
-	log.Println("✅ Proveedor de datos de mercado inicializado (Yahoo Finance + fallback)")
+	// Prioridad: Twelve Data (principal) → Yahoo Finance (respaldo) → Demo
+	var provider market.Provider
+	if cfg.TwelveDataAPIKey != "" {
+		provider = market.NewProviderWithTwelveData(cfg.TwelveDataAPIKey, redisCache)
+		log.Println("✅ Proveedor de datos: Twelve Data (principal) + Yahoo Finance (respaldo)")
+	} else {
+		provider = market.NewProvider(cfg.AlphaVantageAPIKey, redisCache)
+		log.Println("✅ Proveedor de datos: Yahoo Finance (sin Twelve Data API key)")
+	}
 
 	// Crear motor de trading con lógica de trader profesional
 	engine := trading.NewEngine(database, redisCache, provider, cfg)
@@ -66,12 +72,13 @@ func main() {
 	router := api.NewRouter(database, redisCache, engine, deepseekClient)
 
 	// Configurar servidor HTTP
+	// Timeouts amplios porque Yahoo Finance + cálculo de 300 velas + DeepSeek toman tiempo
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// Iniciar servidor en una goroutine

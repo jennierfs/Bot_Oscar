@@ -3,8 +3,8 @@
 // Interfaz y generador de datos demo como último recurso
 //
 // Prioridad de proveedores:
-//  1. Yahoo Finance (GRATIS, sin API key, acciones + commodities)
-//  2. Alpha Vantage (si se configura una API key real)
+//  1. Twelve Data (PRINCIPAL - 800 créditos/día gratis, acciones + ETFs)
+//  2. Yahoo Finance (RESPALDO - gratis, sin API key)
 //  3. Demo (solo si todo lo anterior falla)
 //
 // ============================================
@@ -28,66 +28,80 @@ type Provider interface {
 }
 
 // NewProvider crea el proveedor de datos de mercado
-// Usa Yahoo Finance como fuente principal (gratis, sin API key)
-// Si se proporciona una API key de Alpha Vantage, la usa como respaldo
+// Prioridad: Twelve Data (principal) → Yahoo Finance (respaldo) → Demo
 func NewProvider(apiKey string, redisCache *cache.Cache) Provider {
-	// Yahoo Finance como proveedor principal
+	// Yahoo Finance como proveedor de respaldo
 	yahooProvider := &YahooFinanceProvider{
 		cache: redisCache,
 	}
 
-	// Si hay API key de Alpha Vantage válida, crear proveedor de respaldo
-	var alphaProvider *AlphaVantageProvider
-	if apiKey != "" && apiKey != "demo" {
-		alphaProvider = &AlphaVantageProvider{
-			apiKey: apiKey,
-			cache:  redisCache,
-		}
-	}
-
 	// Retornar proveedor con fallback
 	return &MultiProvider{
-		primary:  yahooProvider,
-		fallback: alphaProvider,
-		demo:     &DemoProvider{cache: redisCache},
-		cache:    redisCache,
+		yahoo: yahooProvider,
+		demo:  &DemoProvider{cache: redisCache},
+		cache: redisCache,
+	}
+}
+
+// NewProviderWithTwelveData crea el proveedor con Twelve Data como fuente principal
+// Prioridad: Twelve Data → Yahoo Finance → Demo
+func NewProviderWithTwelveData(twelveDataKey string, redisCache *cache.Cache) Provider {
+	// Twelve Data como proveedor principal
+	var tdProvider *TwelveDataProvider
+	if twelveDataKey != "" {
+		tdProvider = NewTwelveDataProvider(twelveDataKey, redisCache)
+	}
+
+	// Yahoo Finance como respaldo
+	yahooProvider := &YahooFinanceProvider{
+		cache: redisCache,
+	}
+
+	return &MultiProvider{
+		twelveData: tdProvider,
+		yahoo:      yahooProvider,
+		demo:       &DemoProvider{cache: redisCache},
+		cache:      redisCache,
 	}
 }
 
 // ============================================
 // MultiProvider - Proveedor con sistema de fallback
-// Intenta Yahoo → Alpha Vantage → Demo (último recurso)
+// Intenta Twelve Data → Yahoo Finance → Demo (último recurso)
 // ============================================
 
-// MultiProvider intenta múltiples fuentes de datos en orden
+// MultiProvider intenta múltiples fuentes de datos en orden de prioridad
 type MultiProvider struct {
-	primary  *YahooFinanceProvider
-	fallback *AlphaVantageProvider
-	demo     *DemoProvider
-	cache    *cache.Cache
+	twelveData *TwelveDataProvider   // Fuente principal (Twelve Data API)
+	yahoo      *YahooFinanceProvider // Respaldo (Yahoo Finance, sin API key)
+	demo       *DemoProvider         // Último recurso (datos simulados)
+	cache      *cache.Cache
 }
 
-// GetPrices obtiene precios intentando cada proveedor en orden de prioridad
+// GetPrices obtiene precios intentando cada proveedor en orden de prioridad:
+// 1. Twelve Data (si está configurado)
+// 2. Yahoo Finance (respaldo gratuito)
+// 3. Demo (último recurso)
 func (m *MultiProvider) GetPrices(ctx context.Context, symbol string, days int) ([]models.Price, error) {
-	// 1. Intentar Yahoo Finance (fuente principal)
-	prices, err := m.primary.GetPrices(ctx, symbol, days)
-	if err == nil && len(prices) > 0 {
-		return prices, nil
-	}
-	if err != nil {
-		log.Printf("⚠️ [%s] Yahoo Finance falló: %v", symbol, err)
-	}
-
-	// 2. Intentar Alpha Vantage como respaldo (si hay API key)
-	if m.fallback != nil {
-		prices, err = m.fallback.GetPrices(ctx, symbol, days)
+	// 1. Intentar Twelve Data (fuente principal)
+	if m.twelveData != nil {
+		prices, err := m.twelveData.GetPrices(ctx, symbol, days)
 		if err == nil && len(prices) > 0 {
-			log.Printf("✅ [%s] Datos obtenidos de Alpha Vantage (respaldo)", symbol)
 			return prices, nil
 		}
 		if err != nil {
-			log.Printf("⚠️ [%s] Alpha Vantage también falló: %v", symbol, err)
+			log.Printf("⚠️ [%s] Twelve Data falló: %v", symbol, err)
 		}
+	}
+
+	// 2. Intentar Yahoo Finance como respaldo
+	prices, err := m.yahoo.GetPrices(ctx, symbol, days)
+	if err == nil && len(prices) > 0 {
+		log.Printf("✅ [%s] Datos obtenidos de Yahoo Finance (respaldo)", symbol)
+		return prices, nil
+	}
+	if err != nil {
+		log.Printf("⚠️ [%s] Yahoo Finance también falló: %v", symbol, err)
 	}
 
 	// 3. Último recurso: datos demo (solo si TODAS las fuentes fallaron)
@@ -108,16 +122,16 @@ type DemoProvider struct {
 // preciosBase contiene precios de referencia para cada activo
 // Estos valores son aproximaciones realistas del mercado
 var preciosBase = map[string]float64{
-	"GC=F": 2050.0, // Oro
-	"SI=F": 23.50,  // Plata
-	"CL=F": 75.0,   // Petróleo Crudo
-	"NG=F": 2.50,   // Gas Natural
-	"LMT":  450.0,  // Lockheed Martin
-	"RTX":  95.0,   // Raytheon
-	"NOC":  470.0,  // Northrop Grumman
-	"GD":   270.0,  // General Dynamics
-	"BA":   210.0,  // Boeing
-	"LHX":  210.0,  // L3Harris
+	"GLD": 470.0, // ETF Oro (SPDR Gold Trust)
+	"SLV": 78.0,  // ETF Plata (iShares Silver)
+	"USO": 104.0, // ETF Petróleo (US Oil Fund)
+	"UNG": 13.0,  // ETF Gas Natural (US Natural Gas)
+	"LMT": 665.0, // Lockheed Martin
+	"RTX": 130.0, // Raytheon
+	"NOC": 530.0, // Northrop Grumman
+	"GD":  360.0, // General Dynamics
+	"BA":  230.0, // Boeing
+	"LHX": 240.0, // L3Harris
 }
 
 // GetPrices genera datos de precios demo para un activo

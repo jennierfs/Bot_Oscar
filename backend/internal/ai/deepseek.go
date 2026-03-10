@@ -175,9 +175,9 @@ func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices
 	prevClose := prices[len(prices)-2].Close
 	dailyChange := ((currentPrice - prevClose) / prevClose) * 100
 
-	// Últimas 5 velas para contexto de acción del precio
+	// Últimas 20 velas para contexto de acción del precio (patrones)
 	var recentCandles strings.Builder
-	startIdx := len(prices) - 5
+	startIdx := len(prices) - 20
 	if startIdx < 0 {
 		startIdx = 0
 	}
@@ -193,12 +193,35 @@ func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices
 		))
 	}
 
-	// Determinar tendencia SMA
-	smaTrend := "INDEFINIDA"
-	if ind.SMA50 > ind.SMA200 {
-		smaTrend = "ALCISTA (Golden Cross - SMA50 > SMA200)"
-	} else if ind.SMA50 < ind.SMA200 {
-		smaTrend = "BAJISTA (Death Cross - SMA50 < SMA200)"
+	// Determinar tendencia por EMAs (más importante que SMAs)
+	emaTrend := "INDEFINIDA"
+	if ind.EMA50 > 0 && ind.EMA200 > 0 {
+		if ind.EMA50 > ind.EMA200 {
+			emaTrend = "ALCISTA (Golden Cross EMA - EMA50 > EMA200)"
+		} else {
+			emaTrend = "BAJISTA (Death Cross EMA - EMA50 < EMA200)"
+		}
+	}
+
+	// Posición del precio respecto a la EMA200
+	ema200Pos := "Sin datos"
+	if ind.EMA200 > 0 {
+		distPct := ((currentPrice - ind.EMA200) / ind.EMA200) * 100
+		if distPct > 0 {
+			ema200Pos = fmt.Sprintf("ENCIMA (+%.1f%%) → mercado alcista", distPct)
+		} else {
+			ema200Pos = fmt.Sprintf("DEBAJO (%.1f%%) → mercado bajista", distPct)
+		}
+	}
+
+	// Posición respecto a VWAP
+	vwapPos := "Sin datos"
+	if ind.VWAP > 0 {
+		if currentPrice > ind.VWAP {
+			vwapPos = "ENCIMA del VWAP (precio 'caro' vs promedio institucional)"
+		} else {
+			vwapPos = "DEBAJO del VWAP (precio 'barato' vs promedio institucional)"
+		}
 	}
 
 	// Posición respecto a Bollinger
@@ -213,7 +236,21 @@ func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices
 		bollingerPos = "Entre banda inferior y media"
 	}
 
-	prompt := fmt.Sprintf(`Eres un trader profesional con más de 20 años de experiencia en análisis técnico de mercados financieros. Analiza los siguientes datos REALES de mercado y genera una señal de trading.
+	// Análisis de volumen
+	volAnalysis := "Sin datos"
+	if ind.VolumenRatio > 0 {
+		if ind.VolumenRatio > 2.0 {
+			volAnalysis = fmt.Sprintf("PICO DE VOLUMEN MUY ALTO (%.1fx del promedio) → movimiento significativo", ind.VolumenRatio)
+		} else if ind.VolumenRatio > 1.5 {
+			volAnalysis = fmt.Sprintf("Volumen elevado (%.1fx del promedio) → confirma dirección", ind.VolumenRatio)
+		} else if ind.VolumenRatio < 0.5 {
+			volAnalysis = fmt.Sprintf("Volumen MUY BAJO (%.1fx del promedio) → movimiento débil/sin convicción", ind.VolumenRatio)
+		} else {
+			volAnalysis = fmt.Sprintf("Volumen normal (%.1fx del promedio)", ind.VolumenRatio)
+		}
+	}
+
+	prompt := fmt.Sprintf(`Eres un trader profesional institucional con más de 20 años de experiencia en análisis técnico. Analiza estos datos REALES y genera una señal de trading precisa.
 
 === ACTIVO ===
 Símbolo: %s
@@ -222,39 +259,52 @@ Tipo: %s
 Precio actual: $%.2f
 Cambio diario: %.2f%%
 
-=== INDICADORES TÉCNICOS (CALCULADOS CON DATOS REALES) ===
-RSI(14): %.2f %s
-MACD: %.4f | Señal MACD: %.4f | Histograma: %.4f
-SMA(50): $%.2f
+=== TENDENCIA PRINCIPAL (LO MÁS IMPORTANTE) ===
+EMA(200): $%.2f → Precio %s
+EMA(50):  $%.2f
+EMA(21):  $%.2f (pullbacks)
+Tendencia EMA: %s
+SMA(50):  $%.2f
 SMA(200): $%.2f
-Tendencia SMA: %s
-EMA(12): $%.2f
-EMA(26): $%.2f
+
+=== MOMENTUM ===
+RSI(14): %.2f %s
+MACD: %.4f | Señal: %.4f | Histograma: %.4f
+EMA(12): $%.2f | EMA(26): $%.2f (cruce: %s)
+
+=== VOLUMEN INSTITUCIONAL ===
+VWAP(20): $%.2f → Precio %s
+Volumen hoy: %d | Promedio 20d: %d
+Ratio volumen: %s
+
+=== VOLATILIDAD ===
+ATR(14): $%.2f (volatilidad diaria real)
 Bollinger Superior: $%.2f
-Bollinger Media: $%.2f  
+Bollinger Media:    $%.2f
 Bollinger Inferior: $%.2f
 Posición Bollinger: %s
-Puntuación de confluencia del sistema: %d/100 → %s
 
-=== ÚLTIMAS 5 VELAS DIARIAS ===
+=== PUNTUACIÓN DEL SISTEMA ===
+Confluencia: %d/100 → %s
+
+=== ÚLTIMAS 20 VELAS DIARIAS (para detectar patrones) ===
 %s
 === INSTRUCCIONES ===
-1. Analiza TODOS los indicadores en conjunto (confluencia)
-2. Identifica la tendencia principal y la fuerza de la misma
-3. Determina niveles de soporte y resistencia basados en los datos
-4. Genera una señal con niveles específicos de entrada, stop loss y take profit
-5. Sé HONESTO: si los indicadores son contradictorios, di "MANTENER"
-6. El stop loss debe ser realista basado en la volatilidad (Bollinger width)
-7. El take profit debe respetar un ratio riesgo/beneficio mínimo de 1:2
+1. La EMA200 determina la tendencia principal. Si el precio está encima = solo buscar COMPRAS. Si está debajo = solo buscar VENTAS.
+2. Usa VWAP para confirmar si el precio está caro o barato para institucionales.
+3. ATR te dice la volatilidad real - úsalo para SL/TP realistas.
+4. El volumen confirma o invalida el movimiento. Sin volumen = señal débil.
+5. Busca confluencia de al menos 3-4 indicadores alineados.
+6. Sé HONESTO: si hay contradicción, di "MANTENER".
+7. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
 
 === REGLA CRÍTICA: STOP LOSS Y TAKE PROFIT OBLIGATORIOS ===
-SIEMPRE debes proporcionar valores numéricos concretos (mayor que 0) para stopLoss y takeProfit. NUNCA devuelvas 0 en esos campos.
-- Para señal COMPRA: stopLoss = soporte más cercano (banda inferior Bollinger, SMA200 o mínimo reciente). takeProfit = resistencia más cercana (banda superior Bollinger o máximo reciente) con ratio mínimo 1:2.
-- Para señal VENTA: stopLoss = resistencia más cercana (banda superior Bollinger, SMA50 o máximo reciente). takeProfit = soporte más cercano (banda inferior Bollinger o mínimo reciente) con ratio mínimo 1:2.
-- Para señal MANTENER: Calcula IGUALMENTE los niveles donde COMPRARÍAS (soporte clave = takeProfit si baja) y donde VENDERÍAS (resistencia clave = takeProfit si sube). El stopLoss será el nivel de invalidación de la estructura actual. Esto ayuda al trader a saber DÓNDE actuar cuando el precio se mueva.
-- Usa los datos de Bollinger Bands, SMA50, SMA200, mínimos y máximos de las últimas velas para calcular estos niveles.
+SIEMPRE proporciona valores numéricos concretos (mayor que 0) para stopLoss y takeProfit.
+- COMPRA: stopLoss = soporte (EMA200, banda inferior Bollinger, o mínimo reciente - usa ATR como referencia). takeProfit = resistencia con ratio 1:2.
+- VENTA: stopLoss = resistencia (EMA200, banda superior Bollinger, o máximo reciente). takeProfit = soporte con ratio 1:2.
+- MANTENER: stopLoss = nivel de invalidación. takeProfit = nivel donde actuarías.
 
-Responde EXCLUSIVAMENTE en formato JSON con esta estructura (sin markdown, sin backticks, solo JSON puro):
+Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
 {
   "signal": "COMPRA" | "VENTA" | "MANTENER",
   "confidence": <número 0-100>,
@@ -266,27 +316,40 @@ Responde EXCLUSIVAMENTE en formato JSON con esta estructura (sin markdown, sin b
   "analysis": "<análisis detallado en español, máximo 3 párrafos>",
   "keyFactors": ["factor1", "factor2", "factor3"]
 }`,
-		asset.Symbol,
-		asset.Name,
-		asset.Type,
-		currentPrice,
-		dailyChange,
+		// Activo
+		asset.Symbol, asset.Name, asset.Type, currentPrice, dailyChange,
+		// Tendencia principal
+		ind.EMA200, ema200Pos,
+		ind.EMA50, ind.EMA21, emaTrend,
+		ind.SMA50, ind.SMA200,
+		// Momentum
 		ind.RSI, rsiInterpretation(ind.RSI),
 		ind.MACD.MACD, ind.MACD.Signal, ind.MACD.Histogram,
-		ind.SMA50,
-		ind.SMA200,
-		smaTrend,
-		ind.EMA12,
-		ind.EMA26,
-		ind.Bollinger.Upper,
-		ind.Bollinger.Middle,
-		ind.Bollinger.Lower,
-		bollingerPos,
+		ind.EMA12, ind.EMA26, emaCrossDescription(ind.EMA12, ind.EMA26),
+		// Volumen
+		ind.VWAP, vwapPos,
+		ind.VolumenHoy, ind.VolumenProm, volAnalysis,
+		// Volatilidad
+		ind.ATR,
+		ind.Bollinger.Upper, ind.Bollinger.Middle, ind.Bollinger.Lower, bollingerPos,
+		// Sistema
 		ind.Score, ind.Signal,
+		// Velas
 		recentCandles.String(),
 	)
 
 	return prompt
+}
+
+// emaCrossDescription describe el cruce EMA12/EMA26
+func emaCrossDescription(ema12, ema26 float64) string {
+	if ema12 > 0 && ema26 > 0 {
+		if ema12 > ema26 {
+			return "EMA12 > EMA26 → impulso alcista"
+		}
+		return "EMA12 < EMA26 → impulso bajista"
+	}
+	return "sin datos"
 }
 
 // rsiInterpretation devuelve la interpretación textual del RSI

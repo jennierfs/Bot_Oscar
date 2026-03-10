@@ -2,7 +2,7 @@
 // Bot Oscar - Header (Encabezado)
 // Logo + Selector de activo + Estado del bot + Controles
 // ============================================
-import { Play, Square, Activity, Clock, BarChart3 } from 'lucide-react';
+import { Play, Square, Activity, Clock, BarChart3, Sparkles, Loader2 } from 'lucide-react';
 import type { Asset, BotStatus } from '../../types';
 import AssetSelector from './AssetSelector';
 
@@ -13,6 +13,8 @@ interface HeaderProps {
   assets: Asset[];
   selectedAsset: Asset | null;
   onSelectAsset: (asset: Asset) => void;
+  onGenerateSignal: () => void;
+  aiLoading: boolean;
 }
 
 export default function Header({
@@ -22,6 +24,8 @@ export default function Header({
   assets,
   selectedAsset,
   onSelectAsset,
+  onGenerateSignal,
+  aiLoading,
 }: HeaderProps) {
   const isRunning = botStatus?.running ?? false;
 
@@ -53,6 +57,34 @@ export default function Header({
           selectedAsset={selectedAsset}
           onSelectAsset={onSelectAsset}
         />
+
+        {/* Separador */}
+        <div className="w-px h-8 bg-gray-700/50" />
+
+        {/* Botón Generar Señal IA */}
+        <button
+          onClick={onGenerateSignal}
+          disabled={aiLoading || !selectedAsset}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-all duration-300 ${
+            aiLoading
+              ? 'bg-purple-500/20 text-purple-300 cursor-wait border border-purple-500/30'
+              : !selectedAsset
+              ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed border border-gray-700/30'
+              : 'bg-gradient-to-r from-purple-600 to-purple-500 text-white hover:from-purple-500 hover:to-purple-400 hover:shadow-lg hover:shadow-purple-500/20 active:scale-[0.98]'
+          }`}
+        >
+          {aiLoading ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span className="hidden md:inline">Analizando...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Generar Señal IA</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Centro: Info del bot */}
@@ -80,10 +112,7 @@ export default function Header({
           <span className="text-[11px]">Análisis: {lastAnalysis}</span>
         </div>
 
-        <div className="text-[11px] text-oscar-gray">
-          <span className="text-oscar-gold font-bold">{botStatus?.assetsMonitored ?? 0}</span> activos •{' '}
-          <span className="text-oscar-gold font-bold">{botStatus?.activeSignals ?? 0}</span> señales
-        </div>
+
       </div>
 
       {/* Lado derecho: Controles */}

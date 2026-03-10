@@ -3,7 +3,7 @@
 // Gestiona el estado global y la comunicación con el backend
 // ============================================
 import { useState, useEffect, useCallback } from 'react';
-import type { Asset, Price, Signal, Portfolio, BotStatus, IndicatorValues } from './types';
+import type { Asset, Price, Signal, Portfolio, BotStatus, IndicatorValues, AISignal } from './types';
 import * as api from './services/api';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Dashboard/Dashboard';
@@ -19,6 +19,11 @@ function App() {
   const [indicators, setIndicators] = useState<IndicatorValues | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ---- Estado de señal IA (compartido entre Header y AISignalPanel) ----
+  const [aiSignal, setAiSignal] = useState<AISignal | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // ---- Función para cargar datos generales ----
   const fetchGeneralData = useCallback(async () => {
@@ -76,6 +81,24 @@ function App() {
       fetchAssetData(selectedAsset);
     }
   }, [selectedAsset, fetchAssetData]);
+
+  // ---- Handler para generar señal IA (compartido Header + AISignalPanel) ----
+  const handleGenerateAISignal = async () => {
+    if (!selectedAsset) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiSignal(null);
+    try {
+      const signal = await api.generateAISignal(selectedAsset.symbol);
+      setAiSignal(signal);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Error generando señal IA';
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setAiError(axiosErr.response?.data?.error || errorMsg);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   // ---- Handlers del bot ----
   const handleStartBot = async () => {
@@ -143,15 +166,19 @@ function App() {
         assets={assets}
         selectedAsset={selectedAsset}
         onSelectAsset={setSelectedAsset}
+        onGenerateSignal={handleGenerateAISignal}
+        aiLoading={aiLoading}
       />
 
-      {/* Dashboard con gráficos, señales y portafolio — ancho completo */}
+      {/* Dashboard con gráficos e indicadores — ancho completo */}
       <Dashboard
-        portfolio={portfolio}
-        signals={signals}
         prices={prices}
         indicators={indicators}
         selectedAsset={selectedAsset}
+        aiSignal={aiSignal}
+        aiLoading={aiLoading}
+        aiError={aiError}
+        onGenerateSignal={handleGenerateAISignal}
       />
     </div>
   );

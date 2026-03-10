@@ -3,7 +3,6 @@
 // Permite generar análisis inteligente con un botón
 // y muestra el resultado detallado de DeepSeek
 // ============================================
-import { useState } from 'react';
 import {
   Brain,
   Sparkles,
@@ -20,40 +19,22 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import type { AISignal, Asset } from '../../types';
-import * as api from '../../services/api';
 
 interface AISignalPanelProps {
   selectedAsset: Asset | null;
+  aiSignal: AISignal | null;
+  loading: boolean;
+  error: string | null;
+  onGenerateSignal: () => void;
 }
 
-export default function AISignalPanel({ selectedAsset }: AISignalPanelProps) {
-  const [aiSignal, setAiSignal] = useState<AISignal | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Generar señal IA al presionar el botón
-  const handleGenerateSignal = async () => {
-    if (!selectedAsset) return;
-
-    setLoading(true);
-    setError(null);
-    setAiSignal(null);
-
-    try {
-      const signal = await api.generateAISignal(selectedAsset.symbol);
-      setAiSignal(signal);
-    } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : 'Error desconocido generando señal IA';
-      // Extraer mensaje del backend si existe
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      setError(axiosErr.response?.data?.error || errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function AISignalPanel({
+  selectedAsset,
+  aiSignal,
+  loading,
+  error,
+  onGenerateSignal,
+}: AISignalPanelProps) {
 
   // Ícono según tipo de señal
   const getSignalIcon = (signal: string) => {
@@ -113,7 +94,7 @@ export default function AISignalPanel({ selectedAsset }: AISignalPanelProps) {
 
       {/* Botón de generar señal */}
       <button
-        onClick={handleGenerateSignal}
+        onClick={onGenerateSignal}
         disabled={loading || !selectedAsset}
         className={`w-full mb-4 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all duration-300 ${
           loading
