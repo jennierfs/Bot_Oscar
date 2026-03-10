@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"bot-oscar/internal/models"
+	"bot-oscar/internal/patterns"
 )
 
 // DeepSeekClient maneja la comunicación con la API de DeepSeek
@@ -47,6 +48,31 @@ type AISignalResponse struct {
 	Disclaimer string   `json:"disclaimer"` // Advertencia legal
 	Timestamp  string   `json:"timestamp"`
 	Model      string   `json:"model"` // Modelo de IA usado
+
+	// Patrones de velas detectados (para mostrar en la UI)
+	Patterns *PatternData `json:"patterns,omitempty"` // nil si no se detectaron
+}
+
+// PatternData datos de patrones para el frontend
+type PatternData struct {
+	Detected      []PatternItem         `json:"detected"`      // Lista de patrones encontrados
+	BullishCount  int                   `json:"bullishCount"`  // Total alcistas
+	BearishCount  int                   `json:"bearishCount"`  // Total bajistas
+	NeutralCount  int                   `json:"neutralCount"`  // Total neutrales
+	Bias          string                `json:"bias"`          // ALCISTA/BAJISTA/NEUTRAL
+	BiasStrength  int                   `json:"biasStrength"`  // 0-100
+	ByTimeframe   map[string]string     `json:"byTimeframe"`   // Sesgo por TF
+	Confluences   []string              `json:"confluences"`   // Confluencias multi-TF
+}
+
+// PatternItem un patrón individual para mostrar en la UI
+type PatternItem struct {
+	Name      string `json:"name"`      // Nombre del patrón
+	NameEN    string `json:"nameEN"`    // Nombre en inglés
+	Type      string `json:"type"`      // ALCISTA/BAJISTA/NEUTRAL
+	Strength  int    `json:"strength"`  // 1-3 (estrellas)
+	Timeframe string `json:"timeframe"` // 1day, 4h, 1h
+	Details   string `json:"details"`   // Descripción
 }
 
 // deepseekRequest estructura de petición al API de DeepSeek (compatible OpenAI)
@@ -103,6 +129,7 @@ func (c *DeepSeekClient) GenerateSignal(
 	asset models.Asset,
 	indicators *models.IndicatorValues,
 	prices []models.Price,
+	patternAnalysis *patterns.PatternAnalysis,
 ) (*AISignalResponse, error) {
 
 	if !c.IsConfigured() {
@@ -113,8 +140,8 @@ func (c *DeepSeekClient) GenerateSignal(
 		return nil, fmt.Errorf("no hay indicadores calculados para %s", asset.Symbol)
 	}
 
-	// Construir el prompt con TODOS los datos numéricos reales
-	prompt := buildAnalysisPrompt(asset, indicators, prices)
+	// Construir el prompt con TODOS los datos numéricos reales + patrones de velas
+	prompt := buildAnalysisPrompt(asset, indicators, prices, patternAnalysis)
 
 	log.Printf("🧠 [%s] Enviando datos a DeepSeek para análisis IA...", asset.Symbol)
 
@@ -146,7 +173,7 @@ func (c *DeepSeekClient) GenerateSignal(
 		if fallbackTP <= entry {
 			fallbackTP = entry + margin
 		}
-		return &AISignalResponse{
+		fallbackResp := &AISignalResponse{
 			Symbol:     asset.Symbol,
 			AssetName:  asset.Name,
 			Signal:     indicators.Signal,
@@ -161,15 +188,52 @@ func (c *DeepSeekClient) GenerateSignal(
 			Disclaimer: "⚠️ Esto NO es asesoría financiera. Es una interpretación de IA sobre indicadores técnicos.",
 			Timestamp:  time.Now().Format(time.RFC3339),
 			Model:      "deepseek-chat",
-		}, nil
+		}
+		if patternAnalysis != nil && len(patternAnalysis.PatternsFound) > 0 {
+			fallbackResp.Patterns = buildPatternData(patternAnalysis)
+		}
+		return fallbackResp, nil
+	}
+
+	// Agregar datos de patrones a la respuesta para la UI
+	if patternAnalysis != nil && len(patternAnalysis.PatternsFound) > 0 {
+		aiSignal.Patterns = buildPatternData(patternAnalysis)
 	}
 
 	log.Printf("✅ [%s] Señal IA generada: %s (confianza: %d%%)", asset.Symbol, aiSignal.Signal, aiSignal.Confidence)
 	return aiSignal, nil
 }
 
+// buildPatternData convierte PatternAnalysis → PatternData para el frontend
+func buildPatternData(pa *patterns.PatternAnalysis) *PatternData {
+	pd := &PatternData{
+		Detected:     make([]PatternItem, 0, len(pa.PatternsFound)),
+		BullishCount: pa.BullishCount,
+		BearishCount: pa.BearishCount,
+		NeutralCount: pa.NeutralCount,
+		Bias:         pa.Bias,
+		BiasStrength: pa.BiasStrength,
+		ByTimeframe:  pa.MultiTimeframe,
+		Confluences:  pa.Confluences,
+	}
+	for _, p := range pa.PatternsFound {
+		pd.Detected = append(pd.Detected, PatternItem{
+			Name:      p.Name,
+			NameEN:    p.NameEN,
+			Type:      string(p.Type),
+			Strength:  int(p.Strength),
+			Timeframe: p.Timeframe,
+			Details:   p.Details,
+		})
+	}
+	if pd.Confluences == nil {
+		pd.Confluences = []string{}
+	}
+	return pd
+}
+
 // buildAnalysisPrompt construye el prompt con datos reales para DeepSeek
-func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices []models.Price) string {
+func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices []models.Price, patternAnalysis *patterns.PatternAnalysis) string {
 	// Calcular datos adicionales de contexto
 	currentPrice := prices[len(prices)-1].Close
 	prevClose := prices[len(prices)-2].Close
@@ -250,7 +314,23 @@ func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices
 		}
 	}
 
-	prompt := fmt.Sprintf(`Eres un trader profesional institucional con más de 20 años de experiencia en análisis técnico. Analiza estos datos REALES y genera una señal de trading precisa.
+	// Generar sección de patrones de velas
+	patternSection := ""
+	if patternAnalysis != nil && len(patternAnalysis.PatternsFound) > 0 {
+		patternSection = fmt.Sprintf(`
+
+=== PATRONES DE VELAS DETECTADOS (solo de %s, NUNCA de otro activo) ===
+%s
+`, asset.Symbol, patternAnalysis.SummaryForAI)
+	} else {
+		patternSection = fmt.Sprintf(`
+
+=== PATRONES DE VELAS ===
+No se detectaron patrones de velas significativos en %s en los timeframes analizados.
+`, asset.Symbol)
+	}
+
+	prompt := fmt.Sprintf(`Eres un trader profesional institucional con más de 20 años de experiencia en análisis técnico y lectura de patrones de velas japonesas. Analiza estos datos REALES y genera una señal de trading precisa.
 
 === ACTIVO ===
 Símbolo: %s
@@ -286,8 +366,8 @@ Posición Bollinger: %s
 
 === PUNTUACIÓN DEL SISTEMA ===
 Confluencia: %d/100 → %s
-
-=== ÚLTIMAS 20 VELAS DIARIAS (para detectar patrones) ===
+%s
+=== ÚLTIMAS 20 VELAS DIARIAS ===
 %s
 === INSTRUCCIONES ===
 1. La EMA200 determina la tendencia principal. Si el precio está encima = solo buscar COMPRAS. Si está debajo = solo buscar VENTAS.
@@ -295,8 +375,10 @@ Confluencia: %d/100 → %s
 3. ATR te dice la volatilidad real - úsalo para SL/TP realistas.
 4. El volumen confirma o invalida el movimiento. Sin volumen = señal débil.
 5. Busca confluencia de al menos 3-4 indicadores alineados.
-6. Sé HONESTO: si hay contradicción, di "MANTENER".
-7. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
+6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = ignorar.
+7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
+8. Sé HONESTO: si hay contradicción entre indicadores y patrones, di "MANTENER".
+9. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
 
 === REGLA CRÍTICA: STOP LOSS Y TAKE PROFIT OBLIGATORIOS ===
 SIEMPRE proporciona valores numéricos concretos (mayor que 0) para stopLoss y takeProfit.
@@ -313,8 +395,8 @@ Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
   "takeProfit": <nivel de take profit concreto, SIEMPRE mayor que 0>,
   "timeframe": "corto" | "medio" | "largo",
   "riskLevel": "bajo" | "medio" | "alto",
-  "analysis": "<análisis detallado en español, máximo 3 párrafos>",
-  "keyFactors": ["factor1", "factor2", "factor3"]
+  "analysis": "<análisis detallado en español incluyendo patrones de velas detectados, máximo 3 párrafos>",
+  "keyFactors": ["factor1", "factor2", "factor3", "factor4"]
 }`,
 		// Activo
 		asset.Symbol, asset.Name, asset.Type, currentPrice, dailyChange,
@@ -334,7 +416,9 @@ Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
 		ind.Bollinger.Upper, ind.Bollinger.Middle, ind.Bollinger.Lower, bollingerPos,
 		// Sistema
 		ind.Score, ind.Signal,
-		// Velas
+		// Patrones de velas (exclusivos de este activo)
+		patternSection,
+		// Velas raw
 		recentCandles.String(),
 	)
 

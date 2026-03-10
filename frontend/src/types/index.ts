@@ -138,4 +138,27 @@ export interface AISignal {
   disclaimer: string;     // Advertencia legal
   timestamp: string;
   model: string;          // Modelo de IA usado
+  patterns?: PatternData; // Patrones de velas detectados
+}
+
+// Datos de patrones de velas japonesas detectados
+export interface PatternData {
+  detected: PatternItem[];     // Lista de patrones encontrados
+  bullishCount: number;        // Total alcistas
+  bearishCount: number;        // Total bajistas
+  neutralCount: number;        // Total neutrales
+  bias: string;                // ALCISTA/BAJISTA/NEUTRAL
+  biasStrength: number;        // 0-100
+  byTimeframe: Record<string, string>;  // Sesgo por timeframe
+  confluences: string[];       // Confluencias multi-timeframe
+}
+
+// Un patrón individual detectado
+export interface PatternItem {
+  name: string;       // Nombre en español
+  nameEN: string;     // Nombre en inglés
+  type: string;       // ALCISTA/BAJISTA/NEUTRAL
+  strength: number;   // 1-3 (estrellas)
+  timeframe: string;  // 1day, 4h, 1h
+  details: string;    // Descripción del patrón
 }

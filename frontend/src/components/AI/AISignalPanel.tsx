@@ -17,8 +17,9 @@ import {
   TrendingDown,
   Loader2,
   CheckCircle,
+  CandlestickChart,
 } from 'lucide-react';
-import type { AISignal, Asset } from '../../types';
+import type { AISignal, Asset, PatternItem } from '../../types';
 
 interface AISignalPanelProps {
   selectedAsset: Asset | null;
@@ -219,6 +220,113 @@ export default function AISignalPanel({
               {aiSignal.analysis}
             </p>
           </div>
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* Sección de Patrones de Velas Japonesas             */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {aiSignal.patterns && aiSignal.patterns.detected.length > 0 && (
+            <div className="bg-oscar-dark/40 border border-gray-800/50 rounded-lg p-4 animate-fade-in">
+              {/* Cabecera de patrones */}
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <CandlestickChart className="w-3.5 h-3.5 text-orange-400" />
+                  Patrones de Velas Detectados
+                </h4>
+                <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  aiSignal.patterns.bias === 'ALCISTA'
+                    ? 'bg-oscar-green/10 text-oscar-green border-oscar-green/30'
+                    : aiSignal.patterns.bias === 'BAJISTA'
+                    ? 'bg-oscar-red/10 text-oscar-red border-oscar-red/30'
+                    : 'bg-oscar-gold/10 text-oscar-gold border-oscar-gold/30'
+                }`}>
+                  Sesgo {aiSignal.patterns.bias} — {aiSignal.patterns.biasStrength}/100
+                </div>
+              </div>
+
+              {/* Barra visual de sesgo */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between text-[10px] mb-1">
+                  <span className="text-oscar-red">Bajista ({aiSignal.patterns.bearishCount})</span>
+                  <span className="text-oscar-gray">Neutral ({aiSignal.patterns.neutralCount})</span>
+                  <span className="text-oscar-green">Alcista ({aiSignal.patterns.bullishCount})</span>
+                </div>
+                <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden flex">
+                  {(() => {
+                    const total = aiSignal.patterns.bullishCount + aiSignal.patterns.bearishCount + aiSignal.patterns.neutralCount;
+                    if (total === 0) return null;
+                    const bullPct = (aiSignal.patterns.bullishCount / total) * 100;
+                    const bearPct = (aiSignal.patterns.bearishCount / total) * 100;
+                    const neutPct = (aiSignal.patterns.neutralCount / total) * 100;
+                    return (
+                      <>
+                        {bearPct > 0 && <div className="h-full bg-oscar-red" style={{ width: `${bearPct}%` }} />}
+                        {neutPct > 0 && <div className="h-full bg-oscar-gold/50" style={{ width: `${neutPct}%` }} />}
+                        {bullPct > 0 && <div className="h-full bg-oscar-green" style={{ width: `${bullPct}%` }} />}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Patrones agrupados por timeframe */}
+              {['1day', '4h', '1h'].map(tf => {
+                const tfPatterns = aiSignal.patterns!.detected.filter((p: PatternItem) => p.timeframe === tf);
+                if (tfPatterns.length === 0) return null;
+                const tfLabel = tf === '1day' ? 'Diario' : tf === '4h' ? '4 Horas' : '1 Hora';
+                const tfBias = aiSignal.patterns!.byTimeframe[tf];
+                return (
+                  <div key={tf} className="mb-2 last:mb-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-mono font-bold text-oscar-gold bg-oscar-gold/10 px-1.5 py-0.5 rounded">
+                        {tfLabel}
+                      </span>
+                      {tfBias && tfBias !== 'NEUTRAL' && (
+                        <span className={`text-[9px] ${tfBias === 'ALCISTA' ? 'text-oscar-green' : 'text-oscar-red'}`}>
+                          {tfBias === 'ALCISTA' ? '↑' : '↓'} {tfBias}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tfPatterns.map((p: PatternItem, idx: number) => (
+                        <div
+                          key={`${tf}-${idx}`}
+                          className={`group relative text-[10px] px-2 py-1 rounded-md border cursor-default transition-all ${
+                            p.type === 'ALCISTA'
+                              ? 'bg-oscar-green/8 border-oscar-green/25 text-oscar-green hover:bg-oscar-green/15'
+                              : p.type === 'BAJISTA'
+                              ? 'bg-oscar-red/8 border-oscar-red/25 text-oscar-red hover:bg-oscar-red/15'
+                              : 'bg-oscar-gold/8 border-oscar-gold/25 text-oscar-gold hover:bg-oscar-gold/15'
+                          }`}
+                        >
+                          <span className="font-medium">{p.name}</span>
+                          <span className="ml-1 opacity-70">
+                            {'★'.repeat(p.strength)}{'☆'.repeat(3 - p.strength)}
+                          </span>
+                          {/* Tooltip con detalles al hacer hover */}
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-[9px] text-oscar-gray whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            {p.details}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Confluencias multi-timeframe */}
+              {aiSignal.patterns.confluences.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-gray-800/50">
+                  <span className="text-[10px] font-bold text-white">Confluencias:</span>
+                  {aiSignal.patterns.confluences.map((c, i) => (
+                    <div key={i} className="text-[10px] text-oscar-gold mt-0.5 flex items-center gap-1">
+                      <span>⚡</span>
+                      <span>{c}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Factores clave */}
           {aiSignal.keyFactors && aiSignal.keyFactors.length > 0 && (

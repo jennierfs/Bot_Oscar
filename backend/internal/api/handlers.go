@@ -9,6 +9,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+
+	"bot-oscar/internal/models"
+	"bot-oscar/internal/patterns"
 )
 
 // ============================================
@@ -297,8 +300,26 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 				return
 			}
 
-			// 3. Enviar a DeepSeek para análisis inteligente
-			aiSignal, err := s.deepseek.GenerateSignal(r.Context(), asset, indicators, prices)
+			// 3. Detectar patrones de velas EXCLUSIVOS de este activo
+			//    Usando las velas almacenadas en BD (nunca mezcla con otros activos)
+			var patternAnalysis *patterns.PatternAnalysis
+			candlesByTF := make(map[string][]models.Candle)
+			patternTimeframes := []string{"1day", "4h", "1h"}
+			for _, tf := range patternTimeframes {
+				candles, err := s.db.GetCandles(r.Context(), asset.ID, tf, 100)
+				if err == nil && len(candles) >= 5 {
+					candlesByTF[tf] = candles
+				}
+			}
+			if len(candlesByTF) > 0 {
+				patternAnalysis = patterns.AnalyzeMultiTimeframe(asset.Symbol, candlesByTF)
+				log.Printf("🕯️ [%s] Patrones detectados: %d alcistas, %d bajistas, %d neutrales | Sesgo: %s (%d/100)",
+					asset.Symbol, patternAnalysis.BullishCount, patternAnalysis.BearishCount,
+					patternAnalysis.NeutralCount, patternAnalysis.Bias, patternAnalysis.BiasStrength)
+			}
+
+			// 4. Enviar a DeepSeek para análisis inteligente (con patrones)
+			aiSignal, err := s.deepseek.GenerateSignal(r.Context(), asset, indicators, prices, patternAnalysis)
 			if err != nil {
 				log.Printf("Error generando señal IA para %s: %v", symbol, err)
 				jsonError(w, http.StatusInternalServerError, "Error generando señal IA: "+err.Error())
