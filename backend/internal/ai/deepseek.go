@@ -55,14 +55,14 @@ type AISignalResponse struct {
 
 // PatternData datos de patrones para el frontend
 type PatternData struct {
-	Detected      []PatternItem         `json:"detected"`      // Lista de patrones encontrados
-	BullishCount  int                   `json:"bullishCount"`  // Total alcistas
-	BearishCount  int                   `json:"bearishCount"`  // Total bajistas
-	NeutralCount  int                   `json:"neutralCount"`  // Total neutrales
-	Bias          string                `json:"bias"`          // ALCISTA/BAJISTA/NEUTRAL
-	BiasStrength  int                   `json:"biasStrength"`  // 0-100
-	ByTimeframe   map[string]string     `json:"byTimeframe"`   // Sesgo por TF
-	Confluences   []string              `json:"confluences"`   // Confluencias multi-TF
+	Detected     []PatternItem     `json:"detected"`     // Lista de patrones encontrados
+	BullishCount int               `json:"bullishCount"` // Total alcistas
+	BearishCount int               `json:"bearishCount"` // Total bajistas
+	NeutralCount int               `json:"neutralCount"` // Total neutrales
+	Bias         string            `json:"bias"`         // ALCISTA/BAJISTA/NEUTRAL
+	BiasStrength int               `json:"biasStrength"` // 0-100
+	ByTimeframe  map[string]string `json:"byTimeframe"`  // Sesgo por TF
+	Confluences  []string          `json:"confluences"`  // Confluencias multi-TF
 }
 
 // PatternItem un patrón individual para mostrar en la UI

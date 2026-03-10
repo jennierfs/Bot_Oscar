@@ -6,12 +6,13 @@
 // de un activo con otro.
 //
 // Patrones detectados:
-//   REVERSA ALCISTA: Martillo, Envolvente Alcista, Morning Star,
-//                    Piercing Line, Three White Soldiers, Dragonfly Doji
-//   REVERSA BAJISTA: Estrella Fugaz, Envolvente Bajista, Evening Star,
-//                    Dark Cloud Cover, Three Black Crows, Gravestone Doji
-//   CONTINUACIÓN:    Three Methods (alcista/bajista), Marubozu
-//   INDECISIÓN:      Doji, Spinning Top, Harami
+//
+//	REVERSA ALCISTA: Martillo, Envolvente Alcista, Morning Star,
+//	                 Piercing Line, Three White Soldiers, Dragonfly Doji
+//	REVERSA BAJISTA: Estrella Fugaz, Envolvente Bajista, Evening Star,
+//	                 Dark Cloud Cover, Three Black Crows, Gravestone Doji
+//	CONTINUACIÓN:    Three Methods (alcista/bajista), Marubozu
+//	INDECISIÓN:      Doji, Spinning Top, Harami
 //
 // Multi-timeframe: Analiza patrones en múltiples timeframes (1day, 4h, 1h)
 // y reporta la confluencia entre ellos para señales más fuertes.
@@ -52,26 +53,26 @@ const (
 // DetectedPattern un patrón detectado en las velas
 type DetectedPattern struct {
 	Name      string          `json:"name"`      // Nombre del patrón
-	NameEN    string          `json:"nameEN"`     // Nombre en inglés
-	Type      PatternType     `json:"type"`       // ALCISTA, BAJISTA, NEUTRAL
-	Strength  PatternStrength `json:"strength"`   // 1-3
-	Timeframe string          `json:"timeframe"`  // En qué timeframe se detectó
-	Position  int             `json:"position"`   // Índice de la vela donde se detectó
-	Details   string          `json:"details"`    // Descripción detallada
+	NameEN    string          `json:"nameEN"`    // Nombre en inglés
+	Type      PatternType     `json:"type"`      // ALCISTA, BAJISTA, NEUTRAL
+	Strength  PatternStrength `json:"strength"`  // 1-3
+	Timeframe string          `json:"timeframe"` // En qué timeframe se detectó
+	Position  int             `json:"position"`  // Índice de la vela donde se detectó
+	Details   string          `json:"details"`   // Descripción detallada
 }
 
 // PatternAnalysis resultado completo del análisis de patrones para UN activo
 type PatternAnalysis struct {
-	Symbol           string             `json:"symbol"`           // El activo analizado
-	PatternsFound    []DetectedPattern  `json:"patternsFound"`    // Todos los patrones encontrados
-	BullishCount     int                `json:"bullishCount"`     // Cantidad alcistas
-	BearishCount     int                `json:"bearishCount"`     // Cantidad bajistas
-	NeutralCount     int                `json:"neutralCount"`     // Cantidad neutrales
-	Bias             string             `json:"bias"`             // Sesgo general: ALCISTA/BAJISTA/NEUTRAL
-	BiasStrength     int                `json:"biasStrength"`     // Fuerza del sesgo 0-100
-	MultiTimeframe   map[string]string  `json:"multiTimeframe"`   // Sesgo por timeframe
-	Confluences      []string           `json:"confluences"`      // Confluencias entre timeframes
-	SummaryForAI     string             `json:"summaryForAI"`     // Resumen formateado para DeepSeek
+	Symbol         string            `json:"symbol"`         // El activo analizado
+	PatternsFound  []DetectedPattern `json:"patternsFound"`  // Todos los patrones encontrados
+	BullishCount   int               `json:"bullishCount"`   // Cantidad alcistas
+	BearishCount   int               `json:"bearishCount"`   // Cantidad bajistas
+	NeutralCount   int               `json:"neutralCount"`   // Cantidad neutrales
+	Bias           string            `json:"bias"`           // Sesgo general: ALCISTA/BAJISTA/NEUTRAL
+	BiasStrength   int               `json:"biasStrength"`   // Fuerza del sesgo 0-100
+	MultiTimeframe map[string]string `json:"multiTimeframe"` // Sesgo por timeframe
+	Confluences    []string          `json:"confluences"`    // Confluencias entre timeframes
+	SummaryForAI   string            `json:"summaryForAI"`   // Resumen formateado para DeepSeek
 }
 
 // ============================================
