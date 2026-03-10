@@ -417,7 +417,7 @@ func isMarketOpen() bool {
 
 	// Horario: 9:15 - 16:15 ET (±15 min de margen)
 	minuteOfDay := now.Hour()*60 + now.Minute()
-	marketOpen := 9*60 + 15  // 9:15 (15 min antes de apertura)
+	marketOpen := 9*60 + 15   // 9:15 (15 min antes de apertura)
 	marketClose := 16*60 + 15 // 16:15 (15 min después de cierre)
 
 	return minuteOfDay >= marketOpen && minuteOfDay <= marketClose
