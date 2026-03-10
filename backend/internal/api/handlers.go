@@ -407,3 +407,62 @@ func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
 
 	jsonError(w, http.StatusNotFound, "Activo no encontrado: "+symbol)
 }
+
+// ============================================
+// Handlers: Actualización en Tiempo Real
+// ============================================
+
+// handleStartRealtime inicia el actualizador de velas en tiempo real
+func (s *Server) handleStartRealtime(w http.ResponseWriter, r *http.Request) {
+	if s.realtime == nil {
+		jsonError(w, http.StatusServiceUnavailable, "Actualizador no configurado. Necesita TWELVE_DATA_API_KEY")
+		return
+	}
+
+	if s.realtime.IsRunning() {
+		jsonError(w, http.StatusConflict, "Actualizador en tiempo real ya está activo")
+		return
+	}
+
+	if err := s.realtime.Start(); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"message": "🔴 Actualizador en tiempo real INICIADO",
+	})
+}
+
+// handleStopRealtime detiene el actualizador en tiempo real
+func (s *Server) handleStopRealtime(w http.ResponseWriter, r *http.Request) {
+	if s.realtime == nil {
+		jsonError(w, http.StatusServiceUnavailable, "Actualizador no configurado")
+		return
+	}
+
+	if !s.realtime.IsRunning() {
+		jsonError(w, http.StatusConflict, "Actualizador no está activo")
+		return
+	}
+
+	s.realtime.Stop()
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"message": "⏹️ Actualizador en tiempo real DETENIDO",
+	})
+}
+
+// handleGetRealtimeStatus devuelve el estado del actualizador en tiempo real
+func (s *Server) handleGetRealtimeStatus(w http.ResponseWriter, r *http.Request) {
+	if s.realtime == nil {
+		jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"configured": false,
+			"message":    "Actualizador no configurado",
+		})
+		return
+	}
+
+	status := s.realtime.GetStatus()
+	jsonResponse(w, http.StatusOK, status)
+}

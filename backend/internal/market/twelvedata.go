@@ -276,8 +276,8 @@ func (p *TwelveDataProvider) esperarRateLimit() error {
 		}
 	}
 
-	// Registrar esta petición
-	p.requestTimes = append(p.requestTimes, ahora)
+	// Registrar esta petición con el timestamp ACTUAL (después de cualquier espera)
+	p.requestTimes = append(p.requestTimes, time.Now())
 
 	return nil
 }

@@ -64,13 +64,16 @@ func main() {
 
 	// Crear descargador de velas históricas (requiere Twelve Data)
 	var candleDownloader *candles.CandleDownloader
+	var realtimeUpdater *candles.RealtimeUpdater
 	if tdProvider != nil {
 		candleDownloader = candles.NewCandleDownloader(tdProvider, database)
+		realtimeUpdater = candles.NewRealtimeUpdater(tdProvider, database)
 		// Asegurar que la tabla de velas existe en la BD
 		if err := database.EnsureCandlesTable(context.Background()); err != nil {
 			log.Printf("⚠️ Error creando tabla de velas: %v", err)
 		}
 		log.Println("✅ Descargador de velas históricas configurado")
+		log.Println("✅ Actualizador de velas en tiempo real configurado")
 	}
 
 	// Crear cliente de DeepSeek AI para análisis inteligente
@@ -82,7 +85,7 @@ func main() {
 	}
 
 	// Crear router de la API REST
-	router := api.NewRouter(database, redisCache, engine, deepseekClient, candleDownloader)
+	router := api.NewRouter(database, redisCache, engine, deepseekClient, candleDownloader, realtimeUpdater)
 
 	// Configurar servidor HTTP
 	// Timeouts amplios porque Yahoo Finance + cálculo de 300 velas + DeepSeek toman tiempo
@@ -102,6 +105,15 @@ func main() {
 		}
 	}()
 
+	// Auto-iniciar actualizador de velas en tiempo real
+	if realtimeUpdater != nil {
+		if err := realtimeUpdater.Start(); err != nil {
+			log.Printf("⚠️ Error iniciando actualizador en tiempo real: %v", err)
+		} else {
+			log.Println("🔴 LIVE — Velas en tiempo real activadas automáticamente")
+		}
+	}
+
 	// Esperar señal de cierre (Ctrl+C o SIGTERM)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -116,6 +128,12 @@ func main() {
 	// Detener motor de trading
 	engine.Stop()
 	log.Println("✅ Motor de trading detenido")
+
+	// Detener actualizador en tiempo real
+	if realtimeUpdater != nil {
+		realtimeUpdater.Stop()
+		log.Println("✅ Actualizador en tiempo real detenido")
+	}
 
 	// Apagar servidor HTTP
 	if err := server.Shutdown(ctx); err != nil {

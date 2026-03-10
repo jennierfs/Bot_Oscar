@@ -21,10 +21,11 @@ type Server struct {
 	engine     *trading.Engine
 	deepseek   *ai.DeepSeekClient
 	downloader *candles.CandleDownloader
+	realtime   *candles.RealtimeUpdater
 }
 
 // NewRouter crea el router HTTP con todas las rutas de la API
-func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient, candleDownloader *candles.CandleDownloader) http.Handler {
+func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient, candleDownloader *candles.CandleDownloader, realtimeUpdater *candles.RealtimeUpdater) http.Handler {
 	mux := http.NewServeMux()
 
 	server := &Server{
@@ -33,6 +34,7 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 		engine:     engine,
 		deepseek:   deepseekClient,
 		downloader: candleDownloader,
+		realtime:   realtimeUpdater,
 	}
 
 	// --- Rutas de salud ---
@@ -71,6 +73,11 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 	mux.HandleFunc("GET /api/velas/estado", server.handleGetCandleStatus)
 	mux.HandleFunc("GET /api/velas/stats", server.handleGetCandleStats)
 	mux.HandleFunc("GET /api/velas/{simbolo}/{timeframe}", server.handleGetCandles)
+
+	// --- Rutas de actualización en tiempo real ---
+	mux.HandleFunc("POST /api/velas/realtime/iniciar", server.handleStartRealtime)
+	mux.HandleFunc("POST /api/velas/realtime/detener", server.handleStopRealtime)
+	mux.HandleFunc("GET /api/velas/realtime/estado", server.handleGetRealtimeStatus)
 
 	// Aplicar middleware CORS para desarrollo
 	return corsMiddleware(mux)
