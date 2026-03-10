@@ -12,6 +12,7 @@ import (
 
 	"bot-oscar/internal/models"
 	"bot-oscar/internal/patterns"
+	"bot-oscar/internal/trading"
 )
 
 // ============================================
@@ -318,8 +319,13 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 					patternAnalysis.NeutralCount, patternAnalysis.Bias, patternAnalysis.BiasStrength)
 			}
 
-			// 4. Enviar a DeepSeek para análisis inteligente (con patrones)
-			aiSignal, err := s.deepseek.GenerateSignal(r.Context(), asset, indicators, prices, patternAnalysis)
+			// 4. Calcular sentimiento Fear & Greed EXCLUSIVO de este activo
+			currentPrice := prices[len(prices)-1].Close
+			fearGreed := trading.CalculateFearGreed(*indicators, currentPrice, asset.Name)
+			log.Printf("😨 [%s] Sentimiento Fear & Greed: %d/100 → %s", asset.Symbol, fearGreed.Score, fearGreed.Label)
+
+			// 5. Enviar a DeepSeek para análisis inteligente (con patrones + sentimiento)
+			aiSignal, err := s.deepseek.GenerateSignal(r.Context(), asset, indicators, prices, patternAnalysis, &fearGreed)
 			if err != nil {
 				log.Printf("Error generando señal IA para %s: %v", symbol, err)
 				jsonError(w, http.StatusInternalServerError, "Error generando señal IA: "+err.Error())
@@ -327,6 +333,65 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 			}
 
 			jsonResponse(w, http.StatusOK, aiSignal)
+			return
+		}
+	}
+
+	if !found {
+		jsonError(w, http.StatusNotFound, "Activo no encontrado: "+symbol)
+	}
+}
+
+// ============================================
+// Handlers: Índice de Miedo & Codicia por Activo
+// ============================================
+
+// handleGetFearGreed calcula el índice de Miedo & Codicia para un activo específico
+// Cada activo se calcula de forma INDEPENDIENTE con sus propios indicadores
+func (s *Server) handleGetFearGreed(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("simbolo")
+	if symbol == "" {
+		jsonError(w, http.StatusBadRequest, "Símbolo requerido")
+		return
+	}
+
+	// Buscar el activo por símbolo
+	assets, err := s.db.GetActiveAssets(r.Context())
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Error buscando activo")
+		return
+	}
+
+	var found bool
+	for _, asset := range assets {
+		if asset.Symbol == symbol {
+			found = true
+
+			// Calcular indicadores EXCLUSIVOS de este activo
+			_, indicators, err := s.engine.AnalyzeAsset(r.Context(), asset)
+			if err != nil {
+				log.Printf("Error analizando %s para Fear&Greed: %v", symbol, err)
+				jsonError(w, http.StatusInternalServerError, "Error calculando indicadores")
+				return
+			}
+
+			if indicators == nil {
+				jsonError(w, http.StatusInternalServerError, "No se pudieron calcular indicadores para "+symbol)
+				return
+			}
+
+			// Obtener precio actual
+			prices, err := s.engine.GetPrices(r.Context(), asset.Symbol, 5)
+			if err != nil || len(prices) == 0 {
+				jsonError(w, http.StatusInternalServerError, "Error obteniendo precio actual")
+				return
+			}
+			currentPrice := prices[len(prices)-1].Close
+
+			// Calcular Fear & Greed usando SOLO los datos de ESTE activo
+			result := trading.CalculateFearGreed(*indicators, currentPrice, asset.Name)
+
+			jsonResponse(w, http.StatusOK, result)
 			return
 		}
 	}

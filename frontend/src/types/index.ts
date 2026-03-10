@@ -162,3 +162,21 @@ export interface PatternItem {
   timeframe: string;  // 1day, 4h, 1h
   details: string;    // Descripción del patrón
 }
+
+// Índice de Miedo y Codicia por activo individual
+export interface FearGreedResult {
+  symbol: string;
+  assetName: string;
+  score: number;       // 0-100
+  label: string;       // "Miedo Extremo", "Miedo", "Neutral", "Codicia", "Codicia Extrema"
+  description: string; // Explicación en español
+  components: FearGreedComponent[];
+}
+
+// Componente individual del índice Fear & Greed
+export interface FearGreedComponent {
+  name: string;   // Nombre del factor
+  score: number;  // 0-100
+  weight: number; // 0-1
+  detail: string; // Explicación
+}

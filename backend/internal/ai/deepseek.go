@@ -24,6 +24,7 @@ import (
 
 	"bot-oscar/internal/models"
 	"bot-oscar/internal/patterns"
+	"bot-oscar/internal/trading"
 )
 
 // DeepSeekClient maneja la comunicación con la API de DeepSeek
@@ -124,12 +125,14 @@ func (c *DeepSeekClient) IsConfigured() bool {
 }
 
 // GenerateSignal envía los datos técnicos a DeepSeek y obtiene un análisis
+// Incluye el sentimiento de mercado (Fear & Greed) EXCLUSIVO del activo
 func (c *DeepSeekClient) GenerateSignal(
 	ctx context.Context,
 	asset models.Asset,
 	indicators *models.IndicatorValues,
 	prices []models.Price,
 	patternAnalysis *patterns.PatternAnalysis,
+	fearGreed *trading.FearGreedResult,
 ) (*AISignalResponse, error) {
 
 	if !c.IsConfigured() {
@@ -140,8 +143,8 @@ func (c *DeepSeekClient) GenerateSignal(
 		return nil, fmt.Errorf("no hay indicadores calculados para %s", asset.Symbol)
 	}
 
-	// Construir el prompt con TODOS los datos numéricos reales + patrones de velas
-	prompt := buildAnalysisPrompt(asset, indicators, prices, patternAnalysis)
+	// Construir el prompt con TODOS los datos numéricos reales + patrones de velas + sentimiento
+	prompt := buildAnalysisPrompt(asset, indicators, prices, patternAnalysis, fearGreed)
 
 	log.Printf("🧠 [%s] Enviando datos a DeepSeek para análisis IA...", asset.Symbol)
 
@@ -233,7 +236,7 @@ func buildPatternData(pa *patterns.PatternAnalysis) *PatternData {
 }
 
 // buildAnalysisPrompt construye el prompt con datos reales para DeepSeek
-func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices []models.Price, patternAnalysis *patterns.PatternAnalysis) string {
+func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices []models.Price, patternAnalysis *patterns.PatternAnalysis, fearGreed *trading.FearGreedResult) string {
 	// Calcular datos adicionales de contexto
 	currentPrice := prices[len(prices)-1].Close
 	prevClose := prices[len(prices)-2].Close
@@ -314,6 +317,38 @@ func buildAnalysisPrompt(asset models.Asset, ind *models.IndicatorValues, prices
 		}
 	}
 
+	// Generar sección de sentimiento de mercado (Fear & Greed)
+	sentimentSection := ""
+	if fearGreed != nil {
+		var componentDetails strings.Builder
+		for _, comp := range fearGreed.Components {
+			componentDetails.WriteString(fmt.Sprintf("  - %s: %.0f/100 (peso: %.0f%%) → %s\n",
+				comp.Name, comp.Score, comp.Weight*100, comp.Detail))
+		}
+		sentimentSection = fmt.Sprintf(`
+
+=== SENTIMIENTO DE MERCADO (FEAR & GREED) — EXCLUSIVO de %s ===
+Puntuación: %d/100 → %s
+Descripción: %s
+
+Desglose por factor (datos SOLO de %s, NO del mercado general):
+%s
+IMPORTANTE sobre el sentimiento:
+- Si el sentimiento está en "Miedo Extremo" (0-20), históricamente es zona de oportunidad de compra.
+- Si está en "Codicia Extrema" (80-100), históricamente precede correcciones.
+- El sentimiento CONFIRMA o CONTRADICE los indicadores técnicos. Úsalo como filtro adicional.
+- Si los indicadores dicen COMPRA pero el sentimiento es "Codicia Extrema", ten precaución (posible techo).
+- Si los indicadores dicen VENTA pero el sentimiento es "Miedo Extremo", ten precaución (posible suelo).
+`, asset.Symbol, fearGreed.Score, fearGreed.Label, fearGreed.Description,
+			asset.Symbol, componentDetails.String())
+	} else {
+		sentimentSection = fmt.Sprintf(`
+
+=== SENTIMIENTO DE MERCADO ===
+No se pudo calcular el índice de Miedo & Codicia para %s.
+`, asset.Symbol)
+	}
+
 	// Generar sección de patrones de velas
 	patternSection := ""
 	if patternAnalysis != nil && len(patternAnalysis.PatternsFound) > 0 {
@@ -366,7 +401,7 @@ Posición Bollinger: %s
 
 === PUNTUACIÓN DEL SISTEMA ===
 Confluencia: %d/100 → %s
-%s
+%s%s
 === ÚLTIMAS 20 VELAS DIARIAS ===
 %s
 === INSTRUCCIONES ===
@@ -377,8 +412,9 @@ Confluencia: %d/100 → %s
 5. Busca confluencia de al menos 3-4 indicadores alineados.
 6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = ignorar.
 7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
-8. Sé HONESTO: si hay contradicción entre indicadores y patrones, di "MANTENER".
-9. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
+8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. Miedo Extremo (0-20) = posible oportunidad contraria. Codicia Extrema (80-100) = posible corrección. Usa el sentimiento para ajustar tu confianza: si todo apunta a COMPRA pero el sentimiento es Codicia Extrema, baja tu confidence. Si todo apunta a VENTA pero hay Miedo Extremo, sé cauteloso. INCLUYE el sentimiento en tu análisis y en keyFactors.
+9. Sé HONESTO: si hay contradicción entre indicadores, patrones y sentimiento, di "MANTENER".
+10. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
 
 === REGLA CRÍTICA: STOP LOSS Y TAKE PROFIT OBLIGATORIOS ===
 SIEMPRE proporciona valores numéricos concretos (mayor que 0) para stopLoss y takeProfit.
@@ -418,6 +454,8 @@ Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
 		ind.Score, ind.Signal,
 		// Patrones de velas (exclusivos de este activo)
 		patternSection,
+		// Sentimiento de mercado (Fear & Greed) exclusivo del activo
+		sentimentSection,
 		// Velas raw
 		recentCandles.String(),
 	)

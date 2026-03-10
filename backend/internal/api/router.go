@@ -65,6 +65,9 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 	// --- Rutas de indicadores ---
 	mux.HandleFunc("GET /api/indicadores/{simbolo}", server.handleGetIndicators)
 
+	// --- Ruta de Índice de Miedo & Codicia por activo ---
+	mux.HandleFunc("GET /api/feargreed/{simbolo}", server.handleGetFearGreed)
+
 	// --- Rutas de IA (DeepSeek) ---
 	mux.HandleFunc("POST /api/ia/senal/{simbolo}", server.handleGenerateAISignal)
 

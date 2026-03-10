@@ -3,7 +3,7 @@
 // Todas las llamadas HTTP al backend Go
 // ============================================
 import axios from 'axios';
-import type { Asset, Price, Signal, Operation, Portfolio, BotStatus, IndicatorValues, AISignal } from '../types';
+import type { Asset, Price, Signal, Operation, Portfolio, BotStatus, IndicatorValues, AISignal, FearGreedResult } from '../types';
 
 // Cliente HTTP configurado con la base URL de la API
 const api = axios.create({
@@ -55,3 +55,7 @@ export const getIndicators = (symbol: string) =>
 // Timeout más largo porque DeepSeek puede tardar hasta 30s en responder
 export const generateAISignal = (symbol: string) =>
   api.post<AISignal>(`/ia/senal/${symbol}`, null, { timeout: 60000 }).then(res => res.data);
+
+// ---- Índice de Miedo & Codicia por activo ----
+export const getFearGreed = (symbol: string) =>
+  api.get<FearGreedResult>(`/feargreed/${symbol}`).then(res => res.data);

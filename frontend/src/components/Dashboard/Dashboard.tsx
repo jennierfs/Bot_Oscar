@@ -7,6 +7,7 @@ import type { Asset, Price, IndicatorValues, AISignal } from '../../types';
 import PriceChart from '../Charts/PriceChart';
 
 import AISignalPanel from '../AI/AISignalPanel';
+import FearGreedGauge from '../FearGreed/FearGreedGauge';
 
 interface DashboardProps {
   prices: Price[];
@@ -53,6 +54,11 @@ export default function Dashboard({
           symbol={selectedAsset?.symbol ?? ''}
           height={500}
         />
+      </div>
+
+      {/* Fila 2: Índice de Miedo & Codicia del activo seleccionado */}
+      <div className="mb-6">
+        <FearGreedGauge selectedAsset={selectedAsset} />
       </div>
 
       {/* Fila 3: Señales IA (DeepSeek) - ancho completo */}
