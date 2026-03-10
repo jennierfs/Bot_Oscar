@@ -314,3 +314,96 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, http.StatusNotFound, "Activo no encontrado: "+symbol)
 	}
 }
+
+// ============================================
+// Handlers: Velas Históricas
+// ============================================
+
+// handleDownloadCandles inicia la descarga de velas históricas en segundo plano
+func (s *Server) handleDownloadCandles(w http.ResponseWriter, r *http.Request) {
+	if s.downloader == nil {
+		jsonError(w, http.StatusServiceUnavailable, "Descargador no configurado. Necesita TWELVE_DATA_API_KEY")
+		return
+	}
+
+	if s.downloader.IsRunning() {
+		jsonError(w, http.StatusConflict, "Ya hay una descarga en progreso")
+		return
+	}
+
+	if err := s.downloader.Start(); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"message": "Descarga de velas iniciada en segundo plano",
+	})
+}
+
+// handleGetCandleStatus devuelve el estado actual de la descarga de velas
+func (s *Server) handleGetCandleStatus(w http.ResponseWriter, r *http.Request) {
+	if s.downloader == nil {
+		jsonResponse(w, http.StatusOK, map[string]interface{}{
+			"configured": false,
+			"message":    "Descargador no configurado",
+		})
+		return
+	}
+
+	progress := s.downloader.GetProgress()
+	jsonResponse(w, http.StatusOK, progress)
+}
+
+// handleGetCandleStats devuelve estadísticas de velas almacenadas por activo y timeframe
+func (s *Server) handleGetCandleStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.db.GetCandleStats(r.Context())
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Error obteniendo estadísticas: "+err.Error())
+		return
+	}
+	jsonResponse(w, http.StatusOK, stats)
+}
+
+// handleGetCandles obtiene velas almacenadas de un activo y timeframe específico
+func (s *Server) handleGetCandles(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("simbolo")
+	timeframe := r.PathValue("timeframe")
+
+	// Validar timeframe
+	validTF := map[string]bool{"5min": true, "15min": true, "30min": true, "1h": true, "4h": true, "1day": true}
+	if !validTF[timeframe] {
+		jsonError(w, http.StatusBadRequest, "Timeframe inválido. Válidos: 5min, 15min, 30min, 1h, 4h, 1day")
+		return
+	}
+
+	// Buscar activo por símbolo
+	assets, err := s.db.GetActiveAssets(r.Context())
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Error buscando activo")
+		return
+	}
+
+	for _, asset := range assets {
+		if asset.Symbol == symbol {
+			// Leer parámetro limit (default 500)
+			limit := 500
+			if l := r.URL.Query().Get("limit"); l != "" {
+				if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+					limit = parsed
+				}
+			}
+
+			candles, err := s.db.GetCandles(r.Context(), asset.ID, timeframe, limit)
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, "Error obteniendo velas")
+				return
+			}
+
+			jsonResponse(w, http.StatusOK, candles)
+			return
+		}
+	}
+
+	jsonError(w, http.StatusNotFound, "Activo no encontrado: "+symbol)
+}

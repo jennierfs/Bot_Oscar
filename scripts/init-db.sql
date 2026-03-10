@@ -67,6 +67,22 @@ CREATE TABLE IF NOT EXISTS configuracion (
     actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla de velas históricas multi-timeframe
+-- Cada combinación (activo + timeframe + fecha) es ÚNICA
+-- Nunca se mezclan velas de diferentes activos ni timeframes
+CREATE TABLE IF NOT EXISTS velas (
+    id BIGSERIAL PRIMARY KEY,
+    activo_id INTEGER REFERENCES activos(id) ON DELETE CASCADE,
+    timeframe VARCHAR(10) NOT NULL,      -- '5min', '15min', '30min', '1h', '4h', '1day'
+    apertura DECIMAL(15,4) NOT NULL,
+    maximo DECIMAL(15,4) NOT NULL,
+    minimo DECIMAL(15,4) NOT NULL,
+    cierre DECIMAL(15,4) NOT NULL,
+    volumen BIGINT DEFAULT 0,
+    fecha TIMESTAMP NOT NULL,
+    UNIQUE(activo_id, timeframe, fecha)
+);
+
 -- ============================================
 -- Índices para rendimiento de consultas
 -- ============================================
@@ -74,6 +90,9 @@ CREATE INDEX IF NOT EXISTS idx_precios_activo_fecha ON precios(activo_id, fecha 
 CREATE INDEX IF NOT EXISTS idx_senales_activo_fecha ON senales(activo_id, creado_en DESC);
 CREATE INDEX IF NOT EXISTS idx_operaciones_estado ON operaciones(estado);
 CREATE INDEX IF NOT EXISTS idx_operaciones_activo ON operaciones(activo_id);
+
+-- Índice principal de velas: búsqueda rápida por activo + timeframe + fecha
+CREATE INDEX IF NOT EXISTS idx_velas_activo_tf_fecha ON velas(activo_id, timeframe, fecha DESC);
 
 -- ============================================
 -- Datos iniciales: Activos a monitorear

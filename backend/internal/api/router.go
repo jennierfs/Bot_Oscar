@@ -9,27 +9,30 @@ import (
 
 	"bot-oscar/internal/ai"
 	"bot-oscar/internal/cache"
+	"bot-oscar/internal/candles"
 	"bot-oscar/internal/db"
 	"bot-oscar/internal/trading"
 )
 
 // Server contiene las dependencias compartidas por los handlers
 type Server struct {
-	db       *db.Database
-	cache    *cache.Cache
-	engine   *trading.Engine
-	deepseek *ai.DeepSeekClient
+	db         *db.Database
+	cache      *cache.Cache
+	engine     *trading.Engine
+	deepseek   *ai.DeepSeekClient
+	downloader *candles.CandleDownloader
 }
 
 // NewRouter crea el router HTTP con todas las rutas de la API
-func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient) http.Handler {
+func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient, candleDownloader *candles.CandleDownloader) http.Handler {
 	mux := http.NewServeMux()
 
 	server := &Server{
-		db:       database,
-		cache:    redisCache,
-		engine:   engine,
-		deepseek: deepseekClient,
+		db:         database,
+		cache:      redisCache,
+		engine:     engine,
+		deepseek:   deepseekClient,
+		downloader: candleDownloader,
 	}
 
 	// --- Rutas de salud ---
@@ -62,6 +65,12 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 
 	// --- Rutas de IA (DeepSeek) ---
 	mux.HandleFunc("POST /api/ia/senal/{simbolo}", server.handleGenerateAISignal)
+
+	// --- Rutas de velas históricas ---
+	mux.HandleFunc("POST /api/velas/descargar", server.handleDownloadCandles)
+	mux.HandleFunc("GET /api/velas/estado", server.handleGetCandleStatus)
+	mux.HandleFunc("GET /api/velas/stats", server.handleGetCandleStats)
+	mux.HandleFunc("GET /api/velas/{simbolo}/{timeframe}", server.handleGetCandles)
 
 	// Aplicar middleware CORS para desarrollo
 	return corsMiddleware(mux)

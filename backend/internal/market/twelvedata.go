@@ -526,6 +526,102 @@ func convertirValoresTD(values []twelveDataValue, maxDays int) []models.Price {
 	return prices
 }
 
+// ============================================
+// Descarga de velas históricas (multi-timeframe)
+// Usado por el CandleDownloader para llenar la BD
+// ============================================
+
+// FetchHistoricalCandles descarga velas históricas de un símbolo en cualquier timeframe
+// Soporta paginación usando endDate para ir hacia atrás en el tiempo
+// Retorna las velas ordenadas de más antigua a más reciente
+func (p *TwelveDataProvider) FetchHistoricalCandles(ctx context.Context, symbol, interval string, outputSize int, endDate string) ([]models.Candle, error) {
+	// Rate limit
+	if err := p.esperarRateLimit(); err != nil {
+		return nil, fmt.Errorf("[%s/%s] rate limit: %w", symbol, interval, err)
+	}
+
+	// Construir URL
+	url := fmt.Sprintf(
+		"https://api.twelvedata.com/time_series?symbol=%s&interval=%s&outputsize=%d&apikey=%s",
+		symbol, interval, outputSize, p.apiKey,
+	)
+	if endDate != "" {
+		url += "&end_date=" + endDate
+	}
+
+	// Petición HTTP
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creando petición: %w", err)
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error en petición HTTP: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error leyendo respuesta: %w", err)
+	}
+
+	p.registrarCredito()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body[:minInt(len(body), 200)]))
+	}
+
+	// Decodificar respuesta
+	var tdResp twelveDataResponse
+	if err := json.Unmarshal(body, &tdResp); err != nil {
+		return nil, fmt.Errorf("error decodificando JSON: %w", err)
+	}
+
+	if tdResp.Status == "error" {
+		return nil, fmt.Errorf("Twelve Data error (código %d): %s", tdResp.Code, tdResp.Msg)
+	}
+
+	// Convertir a modelo Candle
+	candles := make([]models.Candle, 0, len(tdResp.Values))
+	for _, v := range tdResp.Values {
+		// Intentar formato intraday primero, luego diario
+		date, err := time.Parse("2006-01-02 15:04:05", v.Datetime)
+		if err != nil {
+			date, err = time.Parse("2006-01-02", v.Datetime)
+			if err != nil {
+				continue
+			}
+		}
+
+		openVal, _ := strconv.ParseFloat(v.Open, 64)
+		highVal, _ := strconv.ParseFloat(v.High, 64)
+		lowVal, _ := strconv.ParseFloat(v.Low, 64)
+		closeVal, _ := strconv.ParseFloat(v.Close, 64)
+		volumeVal, _ := strconv.ParseInt(v.Volume, 10, 64)
+
+		if closeVal == 0 || openVal == 0 {
+			continue
+		}
+
+		candles = append(candles, models.Candle{
+			Open:   math.Round(openVal*10000) / 10000,
+			High:   math.Round(highVal*10000) / 10000,
+			Low:    math.Round(lowVal*10000) / 10000,
+			Close:  math.Round(closeVal*10000) / 10000,
+			Volume: volumeVal,
+			Date:   date,
+		})
+	}
+
+	// Ordenar cronológicamente (antiguo → reciente)
+	sort.Slice(candles, func(i, j int) bool {
+		return candles[i].Date.Before(candles[j].Date)
+	})
+
+	return candles, nil
+}
+
 // minInt retorna el menor de dos enteros (helper)
 func minInt(a, b int) int {
 	if a < b {

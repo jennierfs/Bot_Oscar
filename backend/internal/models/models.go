@@ -131,3 +131,28 @@ type BollingerValues struct {
 	Middle float64 `json:"middle"`
 	Lower  float64 `json:"lower"`
 }
+
+// Candle representa una vela OHLCV en cualquier timeframe
+// Se almacena por separado de los precios diarios del motor de trading
+type Candle struct {
+	ID        int64     `json:"id"`
+	AssetID   int       `json:"assetId"`
+	Symbol    string    `json:"symbol,omitempty"`
+	Timeframe string    `json:"timeframe"`
+	Open      float64   `json:"open"`
+	High      float64   `json:"high"`
+	Low       float64   `json:"low"`
+	Close     float64   `json:"close"`
+	Volume    int64     `json:"volume"`
+	Date      time.Time `json:"date"`
+}
+
+// CandleStats estadísticas de velas almacenadas por activo y timeframe
+type CandleStats struct {
+	Symbol    string `json:"symbol"`
+	AssetID   int    `json:"assetId"`
+	Timeframe string `json:"timeframe"`
+	Count     int64  `json:"count"`
+	Oldest    string `json:"oldest"`
+	Newest    string `json:"newest"`
+}

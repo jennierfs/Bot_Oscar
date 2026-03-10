@@ -16,6 +16,7 @@ import (
 	"bot-oscar/internal/ai"
 	"bot-oscar/internal/api"
 	"bot-oscar/internal/cache"
+	"bot-oscar/internal/candles"
 	"bot-oscar/internal/config"
 	"bot-oscar/internal/db"
 	"bot-oscar/internal/market"
@@ -48,8 +49,9 @@ func main() {
 	// Crear proveedor de datos de mercado
 	// Prioridad: Twelve Data (principal) → Yahoo Finance (respaldo) → Demo
 	var provider market.Provider
+	var tdProvider *market.TwelveDataProvider
 	if cfg.TwelveDataAPIKey != "" {
-		provider = market.NewProviderWithTwelveData(cfg.TwelveDataAPIKey, redisCache)
+		provider, tdProvider = market.NewProviderWithTwelveData(cfg.TwelveDataAPIKey, redisCache)
 		log.Println("✅ Proveedor de datos: Twelve Data (principal) + Yahoo Finance (respaldo)")
 	} else {
 		provider = market.NewProvider(cfg.AlphaVantageAPIKey, redisCache)
@@ -60,6 +62,17 @@ func main() {
 	engine := trading.NewEngine(database, redisCache, provider, cfg)
 	log.Println("✅ Motor de trading inicializado")
 
+	// Crear descargador de velas históricas (requiere Twelve Data)
+	var candleDownloader *candles.CandleDownloader
+	if tdProvider != nil {
+		candleDownloader = candles.NewCandleDownloader(tdProvider, database)
+		// Asegurar que la tabla de velas existe en la BD
+		if err := database.EnsureCandlesTable(context.Background()); err != nil {
+			log.Printf("⚠️ Error creando tabla de velas: %v", err)
+		}
+		log.Println("✅ Descargador de velas históricas configurado")
+	}
+
 	// Crear cliente de DeepSeek AI para análisis inteligente
 	deepseekClient := ai.NewDeepSeekClient(cfg.DeepSeekAPIKey)
 	if deepseekClient.IsConfigured() {
@@ -69,7 +82,7 @@ func main() {
 	}
 
 	// Crear router de la API REST
-	router := api.NewRouter(database, redisCache, engine, deepseekClient)
+	router := api.NewRouter(database, redisCache, engine, deepseekClient, candleDownloader)
 
 	// Configurar servidor HTTP
 	// Timeouts amplios porque Yahoo Finance + cálculo de 300 velas + DeepSeek toman tiempo

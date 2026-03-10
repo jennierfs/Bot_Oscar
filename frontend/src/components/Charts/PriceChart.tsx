@@ -82,13 +82,6 @@ function TradingViewChart({ symbol, height = 700 }: TradingViewChartProps) {
       support_host: 'https://www.tradingview.com',
       studies: [
         // === TENDENCIA ===
-        // EMA 200 - Tendencia principal
-        'STD;EMA',
-        // EMA 50 - Tendencia intermedia
-        'STD;EMA',
-        // EMA 21 - Tendencia corta / pullbacks
-        'STD;EMA',
-        // === VOLUMEN ===
         // VWAP - Precio ponderado por volumen (clave institucional)
         'STD;VWAP',
         // === VOLATILIDAD ===
@@ -102,14 +95,6 @@ function TradingViewChart({ symbol, height = 700 }: TradingViewChartProps) {
         // MACD (12, 26, 9)
         'STD;MACD',
       ],
-      studies_overrides: {
-        // EMA 200 (estudio índice 0) - dorada
-        'EMA@tv-basicstudies.length': 200,
-        // EMA 50 (estudio índice 1) - azul
-        'EMA@tv-basicstudies-1.length': 50,
-        // EMA 21 (estudio índice 2) - cyan
-        'EMA@tv-basicstudies-2.length': 21,
-      },
       overrides: {
         'mainSeriesProperties.candleStyle.upColor': '#22C55E',
         'mainSeriesProperties.candleStyle.downColor': '#EF4444',

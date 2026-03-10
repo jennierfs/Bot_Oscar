@@ -44,8 +44,8 @@ func NewProvider(apiKey string, redisCache *cache.Cache) Provider {
 }
 
 // NewProviderWithTwelveData crea el proveedor con Twelve Data como fuente principal
-// Prioridad: Twelve Data → Yahoo Finance → Demo
-func NewProviderWithTwelveData(twelveDataKey string, redisCache *cache.Cache) Provider {
+// Retorna el Provider (interfaz) y el TwelveDataProvider (para el descargador de velas)
+func NewProviderWithTwelveData(twelveDataKey string, redisCache *cache.Cache) (Provider, *TwelveDataProvider) {
 	// Twelve Data como proveedor principal
 	var tdProvider *TwelveDataProvider
 	if twelveDataKey != "" {
@@ -62,7 +62,7 @@ func NewProviderWithTwelveData(twelveDataKey string, redisCache *cache.Cache) Pr
 		yahoo:      yahooProvider,
 		demo:       &DemoProvider{cache: redisCache},
 		cache:      redisCache,
-	}
+	}, tdProvider
 }
 
 // ============================================

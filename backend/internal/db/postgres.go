@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"bot-oscar/internal/config"
@@ -329,4 +330,142 @@ func (d *Database) GetPortfolioSummary(ctx context.Context) (*models.Portfolio, 
 		TotalOperations:     totalCount,
 		Operations:          openOps,
 	}, nil
+}
+
+// ============================================
+// Operaciones con Velas Históricas
+// ============================================
+
+// EnsureCandlesTable crea la tabla de velas si no existe
+func (d *Database) EnsureCandlesTable(ctx context.Context) error {
+	query := `
+	CREATE TABLE IF NOT EXISTS velas (
+		id BIGSERIAL PRIMARY KEY,
+		activo_id INTEGER REFERENCES activos(id) ON DELETE CASCADE,
+		timeframe VARCHAR(10) NOT NULL,
+		apertura DECIMAL(15,4) NOT NULL,
+		maximo DECIMAL(15,4) NOT NULL,
+		minimo DECIMAL(15,4) NOT NULL,
+		cierre DECIMAL(15,4) NOT NULL,
+		volumen BIGINT DEFAULT 0,
+		fecha TIMESTAMP NOT NULL,
+		UNIQUE(activo_id, timeframe, fecha)
+	);
+	CREATE INDEX IF NOT EXISTS idx_velas_activo_tf_fecha ON velas(activo_id, timeframe, fecha DESC);`
+	_, err := d.Pool.Exec(ctx, query)
+	return err
+}
+
+// SaveCandlesBatch guarda velas en lotes eficientes usando pgx.Batch
+// ON CONFLICT DO NOTHING evita duplicados sin error
+func (d *Database) SaveCandlesBatch(ctx context.Context, assetID int, timeframe string, candles []models.Candle) (int64, error) {
+	if len(candles) == 0 {
+		return 0, nil
+	}
+
+	query := `INSERT INTO velas (activo_id, timeframe, apertura, maximo, minimo, cierre, volumen, fecha)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	          ON CONFLICT (activo_id, timeframe, fecha) DO NOTHING`
+
+	const batchSize = 1000
+	var totalInserted int64
+
+	for i := 0; i < len(candles); i += batchSize {
+		end := i + batchSize
+		if end > len(candles) {
+			end = len(candles)
+		}
+		chunk := candles[i:end]
+
+		batch := &pgx.Batch{}
+		for _, c := range chunk {
+			batch.Queue(query, assetID, timeframe, c.Open, c.High, c.Low, c.Close, c.Volume, c.Date)
+		}
+
+		br := d.Pool.SendBatch(ctx, batch)
+		for range chunk {
+			tag, err := br.Exec()
+			if err != nil {
+				br.Close()
+				return totalInserted, fmt.Errorf("error en batch insert de velas: %w", err)
+			}
+			totalInserted += tag.RowsAffected()
+		}
+		br.Close()
+	}
+
+	return totalInserted, nil
+}
+
+// GetLatestCandleDate obtiene la fecha de la última vela almacenada para un activo y timeframe
+func (d *Database) GetLatestCandleDate(ctx context.Context, assetID int, timeframe string) (*time.Time, error) {
+	var fecha time.Time
+	err := d.Pool.QueryRow(ctx,
+		"SELECT fecha FROM velas WHERE activo_id = $1 AND timeframe = $2 ORDER BY fecha DESC LIMIT 1",
+		assetID, timeframe,
+	).Scan(&fecha)
+	if err != nil {
+		return nil, err
+	}
+	return &fecha, nil
+}
+
+// GetCandles obtiene velas de un activo y timeframe ordenadas cronológicamente
+func (d *Database) GetCandles(ctx context.Context, assetID int, timeframe string, limit int) ([]models.Candle, error) {
+	query := `SELECT id, activo_id, timeframe, apertura, maximo, minimo, cierre, volumen, fecha
+	          FROM velas WHERE activo_id = $1 AND timeframe = $2
+	          ORDER BY fecha DESC LIMIT $3`
+
+	rows, err := d.Pool.Query(ctx, query, assetID, timeframe, limit)
+	if err != nil {
+		return nil, fmt.Errorf("error consultando velas: %w", err)
+	}
+	defer rows.Close()
+
+	candles := make([]models.Candle, 0)
+	for rows.Next() {
+		var c models.Candle
+		err := rows.Scan(&c.ID, &c.AssetID, &c.Timeframe, &c.Open, &c.High, &c.Low, &c.Close, &c.Volume, &c.Date)
+		if err != nil {
+			return nil, fmt.Errorf("error escaneando vela: %w", err)
+		}
+		candles = append(candles, c)
+	}
+
+	// Invertir: orden cronológico (antiguo → reciente)
+	for i, j := 0, len(candles)-1; i < j; i, j = i+1, j-1 {
+		candles[i], candles[j] = candles[j], candles[i]
+	}
+
+	return candles, nil
+}
+
+// GetCandleStats obtiene estadísticas de velas almacenadas agrupadas por activo y timeframe
+func (d *Database) GetCandleStats(ctx context.Context) ([]models.CandleStats, error) {
+	query := `SELECT a.simbolo, v.activo_id, v.timeframe,
+	                 COUNT(*) as total,
+	                 MIN(v.fecha)::text as oldest,
+	                 MAX(v.fecha)::text as newest
+	          FROM velas v
+	          JOIN activos a ON a.id = v.activo_id
+	          GROUP BY a.simbolo, v.activo_id, v.timeframe
+	          ORDER BY a.simbolo, v.timeframe`
+
+	rows, err := d.Pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("error consultando estadísticas de velas: %w", err)
+	}
+	defer rows.Close()
+
+	stats := make([]models.CandleStats, 0)
+	for rows.Next() {
+		var s models.CandleStats
+		err := rows.Scan(&s.Symbol, &s.AssetID, &s.Timeframe, &s.Count, &s.Oldest, &s.Newest)
+		if err != nil {
+			return nil, fmt.Errorf("error escaneando stat de velas: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	return stats, nil
 }
