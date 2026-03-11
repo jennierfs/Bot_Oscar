@@ -7,23 +7,23 @@
 //
 // Tipos de divergencia:
 //
-//   DIVERGENCIA ALCISTA (Bullish):
-//   - Precio hace mínimo MÁS BAJO → pero RSI/MACD hace mínimo MÁS ALTO
-//   - Señal: la presión vendedora se agota → probable reversal al alza
-//   - Aparece en fondos de mercado
+//	DIVERGENCIA ALCISTA (Bullish):
+//	- Precio hace mínimo MÁS BAJO → pero RSI/MACD hace mínimo MÁS ALTO
+//	- Señal: la presión vendedora se agota → probable reversal al alza
+//	- Aparece en fondos de mercado
 //
-//   DIVERGENCIA BAJISTA (Bearish):
-//   - Precio hace máximo MÁS ALTO → pero RSI/MACD hace máximo MÁS BAJO
-//   - Señal: la presión compradora se agota → probable reversal a la baja
-//   - Aparece en techos de mercado
+//	DIVERGENCIA BAJISTA (Bearish):
+//	- Precio hace máximo MÁS ALTO → pero RSI/MACD hace máximo MÁS BAJO
+//	- Señal: la presión compradora se agota → probable reversal a la baja
+//	- Aparece en techos de mercado
 //
-//   DIVERGENCIA OCULTA ALCISTA (Hidden Bullish):
-//   - Precio hace mínimo MÁS ALTO → pero RSI/MACD hace mínimo MÁS BAJO
-//   - Señal: continuación de tendencia alcista (pullback sano)
+//	DIVERGENCIA OCULTA ALCISTA (Hidden Bullish):
+//	- Precio hace mínimo MÁS ALTO → pero RSI/MACD hace mínimo MÁS BAJO
+//	- Señal: continuación de tendencia alcista (pullback sano)
 //
-//   DIVERGENCIA OCULTA BAJISTA (Hidden Bearish):
-//   - Precio hace máximo MÁS BAJO → pero RSI/MACD hace máximo MÁS ALTO
-//   - Señal: continuación de tendencia bajista
+//	DIVERGENCIA OCULTA BAJISTA (Hidden Bearish):
+//	- Precio hace máximo MÁS BAJO → pero RSI/MACD hace máximo MÁS ALTO
+//	- Señal: continuación de tendencia bajista
 //
 // Ventana de detección: últimas 5-30 velas (configurable)
 // ============================================
@@ -57,12 +57,12 @@ type Divergence struct {
 
 // DivergenceResult resultado completo del análisis de divergencias
 type DivergenceResult struct {
-	Divergences []Divergence `json:"divergences"` // Divergencias encontradas
-	HasBullish  bool         `json:"hasBullish"`  // ¿Hay alguna alcista?
-	HasBearish  bool         `json:"hasBearish"`  // ¿Hay alguna bajista?
-	StrongestSignal string   `json:"strongestSignal"` // "COMPRA", "VENTA" o "NINGUNA"
-	MaxStrength int          `json:"maxStrength"`     // Fuerza máxima encontrada
-	SummaryForAI string     `json:"summaryForAI"`    // Resumen para DeepSeek
+	Divergences     []Divergence `json:"divergences"`     // Divergencias encontradas
+	HasBullish      bool         `json:"hasBullish"`      // ¿Hay alguna alcista?
+	HasBearish      bool         `json:"hasBearish"`      // ¿Hay alguna bajista?
+	StrongestSignal string       `json:"strongestSignal"` // "COMPRA", "VENTA" o "NINGUNA"
+	MaxStrength     int          `json:"maxStrength"`     // Fuerza máxima encontrada
+	SummaryForAI    string       `json:"summaryForAI"`    // Resumen para DeepSeek
 }
 
 // DetectDivergences analiza precios, RSI y MACD para encontrar divergencias
