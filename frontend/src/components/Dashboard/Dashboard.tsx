@@ -8,6 +8,7 @@ import PriceChart from '../Charts/PriceChart';
 
 import AISignalPanel from '../AI/AISignalPanel';
 import FearGreedGauge from '../FearGreed/FearGreedGauge';
+import SentimentPanel from '../Sentiment/SentimentPanel';
 
 interface DashboardProps {
   prices: Price[];
@@ -61,7 +62,12 @@ export default function Dashboard({
         <FearGreedGauge selectedAsset={selectedAsset} />
       </div>
 
-      {/* Fila 3: Señales IA (DeepSeek) - ancho completo */}
+      {/* Fila 3: Sentimiento de Mercado (Analyst Ratings + Short Interest) */}
+      <div className="mb-6">
+        <SentimentPanel selectedAsset={selectedAsset} />
+      </div>
+
+      {/* Fila 4: Señales IA (DeepSeek) - ancho completo */}
       <div className="mb-6">
         <AISignalPanel
           selectedAsset={selectedAsset}

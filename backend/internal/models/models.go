@@ -156,3 +156,45 @@ type CandleStats struct {
 	Oldest    string `json:"oldest"`
 	Newest    string `json:"newest"`
 }
+
+// ============================================
+// Sentimiento de Mercado (Analyst Ratings + Short Interest)
+// Datos reales obtenidos de Yahoo Finance para cada activo
+// ============================================
+
+// MarketSentiment contiene el sentimiento de mercado de un activo
+type MarketSentiment struct {
+	Symbol         string          `json:"symbol"`
+	AssetName      string          `json:"assetName"`
+	AnalystRatings *AnalystRatings `json:"analystRatings"` // Recomendaciones de analistas
+	ShortInterest  *ShortInterest  `json:"shortInterest"`  // Posiciones en corto
+	Summary        string          `json:"summary"`        // Resumen en español
+	UpdatedAt      string          `json:"updatedAt"`      // Última actualización
+}
+
+// AnalystRatings contiene las recomendaciones de analistas de Wall Street
+type AnalystRatings struct {
+	StrongBuy  int     `json:"strongBuy"`  // Compra fuerte
+	Buy        int     `json:"buy"`        // Compra
+	Hold       int     `json:"hold"`       // Mantener
+	Sell       int     `json:"sell"`       // Venta
+	StrongSell int     `json:"strongSell"` // Venta fuerte
+	Total      int     `json:"total"`      // Total de analistas
+	BuyPercent float64 `json:"buyPercent"` // % que dicen compra (strongBuy+buy)/total
+	SellPercent float64 `json:"sellPercent"` // % que dicen venta (strongSell+sell)/total
+	Consensus  string  `json:"consensus"`  // "Compra Fuerte", "Compra", "Mantener", "Venta", "Venta Fuerte"
+	TargetHigh float64 `json:"targetHigh"` // Precio objetivo más alto
+	TargetLow  float64 `json:"targetLow"`  // Precio objetivo más bajo
+	TargetMean float64 `json:"targetMean"` // Precio objetivo promedio
+	CurrentPrice float64 `json:"currentPrice"` // Precio actual
+	UpsidePercent float64 `json:"upsidePercent"` // % de potencial subida/bajada al target medio
+}
+
+// ShortInterest contiene datos de posiciones en corto
+type ShortInterest struct {
+	ShortPercentOfFloat float64 `json:"shortPercentOfFloat"` // % de acciones en corto vs float
+	ShortRatio          float64 `json:"shortRatio"`          // Días para cubrir (short ratio)
+	SharesShort         int64   `json:"sharesShort"`         // Número de acciones en corto
+	SharesFloat         int64   `json:"sharesFloat"`         // Float total
+	Level               string  `json:"level"`               // "Bajo", "Moderado", "Alto", "Muy Alto"
+}

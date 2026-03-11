@@ -180,3 +180,44 @@ export interface FearGreedComponent {
   weight: number; // 0-1
   detail: string; // Explicación
 }
+
+// ============================================
+// Sentimiento de Mercado (Analyst Ratings + Short Interest)
+// ============================================
+
+// Sentimiento de mercado completo de un activo
+export interface MarketSentiment {
+  symbol: string;
+  assetName: string;
+  analystRatings: AnalystRatings | null;
+  shortInterest: ShortInterest | null;
+  summary: string;
+  updatedAt: string;
+}
+
+// Recomendaciones de analistas de Wall Street
+export interface AnalystRatings {
+  strongBuy: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  strongSell: number;
+  total: number;
+  buyPercent: number;   // % compra
+  sellPercent: number;  // % venta
+  consensus: string;    // "Compra Fuerte", "Compra", "Mantener", "Venta", "Venta Fuerte"
+  targetHigh: number;
+  targetLow: number;
+  targetMean: number;
+  currentPrice: number;
+  upsidePercent: number; // % potencial subida/bajada
+}
+
+// Datos de posiciones en corto
+export interface ShortInterest {
+  shortPercentOfFloat: number;
+  shortRatio: number;
+  sharesShort: number;
+  sharesFloat: number;
+  level: string; // "Bajo", "Moderado", "Alto", "Muy Alto"
+}

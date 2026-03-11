@@ -3,7 +3,7 @@
 // Todas las llamadas HTTP al backend Go
 // ============================================
 import axios from 'axios';
-import type { Asset, Price, Signal, Operation, Portfolio, BotStatus, IndicatorValues, AISignal, FearGreedResult } from '../types';
+import type { Asset, Price, Signal, Operation, Portfolio, BotStatus, IndicatorValues, AISignal, FearGreedResult, MarketSentiment } from '../types';
 
 // Cliente HTTP configurado con la base URL de la API
 const api = axios.create({
@@ -59,3 +59,7 @@ export const generateAISignal = (symbol: string) =>
 // ---- Índice de Miedo & Codicia por activo ----
 export const getFearGreed = (symbol: string) =>
   api.get<FearGreedResult>(`/feargreed/${symbol}`).then(res => res.data);
+
+// ---- Sentimiento de Mercado (Analyst Ratings + Short Interest) ----
+export const getSentiment = (symbol: string) =>
+  api.get<MarketSentiment>(`/sentimiento/${symbol}`).then(res => res.data);

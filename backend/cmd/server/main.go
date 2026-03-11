@@ -84,8 +84,12 @@ func main() {
 		log.Println("⚠️ DeepSeek AI no configurado - Configura DEEPSEEK_API_KEY en .env")
 	}
 
+	// Crear proveedor de sentimiento de mercado (Analyst Ratings + Short Interest)
+	sentimentProvider := market.NewSentimentProvider(redisCache)
+	log.Println("✅ Proveedor de sentimiento de mercado configurado (Yahoo Finance)")
+
 	// Crear router de la API REST
-	router := api.NewRouter(database, redisCache, engine, deepseekClient, candleDownloader, realtimeUpdater)
+	router := api.NewRouter(database, redisCache, engine, deepseekClient, candleDownloader, realtimeUpdater, sentimentProvider)
 
 	// Configurar servidor HTTP
 	// Timeouts amplios porque Yahoo Finance + cálculo de 300 velas + DeepSeek toman tiempo

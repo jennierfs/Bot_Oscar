@@ -412,6 +412,53 @@ func (s *Server) handleGetFearGreed(w http.ResponseWriter, r *http.Request) {
 }
 
 // ============================================
+// Handlers: Sentimiento de Mercado (Analyst Ratings + Short Interest)
+// ============================================
+
+// handleGetSentiment obtiene el sentimiento de mercado de un activo desde Yahoo Finance
+// Incluye recomendaciones de analistas (Buy/Hold/Sell) y Short Interest
+func (s *Server) handleGetSentiment(w http.ResponseWriter, r *http.Request) {
+	symbol := r.PathValue("simbolo")
+	if symbol == "" {
+		jsonError(w, http.StatusBadRequest, "Símbolo requerido")
+		return
+	}
+
+	if s.sentiment == nil {
+		jsonError(w, http.StatusServiceUnavailable, "Proveedor de sentimiento no configurado")
+		return
+	}
+
+	// Buscar el activo por símbolo
+	assets, err := s.db.GetActiveAssets(r.Context())
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Error buscando activo")
+		return
+	}
+
+	var found bool
+	for _, asset := range assets {
+		if asset.Symbol == symbol {
+			found = true
+
+			result, err := s.sentiment.GetSentiment(r.Context(), asset.Symbol, asset.Name)
+			if err != nil {
+				log.Printf("Error obteniendo sentimiento de %s: %v", symbol, err)
+				jsonError(w, http.StatusInternalServerError, "Error obteniendo sentimiento de mercado: "+err.Error())
+				return
+			}
+
+			jsonResponse(w, http.StatusOK, result)
+			return
+		}
+	}
+
+	if !found {
+		jsonError(w, http.StatusNotFound, "Activo no encontrado: "+symbol)
+	}
+}
+
+// ============================================
 // Handlers: Velas Históricas
 // ============================================
 

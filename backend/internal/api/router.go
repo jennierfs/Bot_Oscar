@@ -11,6 +11,7 @@ import (
 	"bot-oscar/internal/cache"
 	"bot-oscar/internal/candles"
 	"bot-oscar/internal/db"
+	"bot-oscar/internal/market"
 	"bot-oscar/internal/trading"
 )
 
@@ -22,10 +23,11 @@ type Server struct {
 	deepseek   *ai.DeepSeekClient
 	downloader *candles.CandleDownloader
 	realtime   *candles.RealtimeUpdater
+	sentiment  *market.SentimentProvider
 }
 
 // NewRouter crea el router HTTP con todas las rutas de la API
-func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient, candleDownloader *candles.CandleDownloader, realtimeUpdater *candles.RealtimeUpdater) http.Handler {
+func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.Engine, deepseekClient *ai.DeepSeekClient, candleDownloader *candles.CandleDownloader, realtimeUpdater *candles.RealtimeUpdater, sentimentProvider *market.SentimentProvider) http.Handler {
 	mux := http.NewServeMux()
 
 	server := &Server{
@@ -35,6 +37,7 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 		deepseek:   deepseekClient,
 		downloader: candleDownloader,
 		realtime:   realtimeUpdater,
+		sentiment:  sentimentProvider,
 	}
 
 	// --- Rutas de salud ---
@@ -67,6 +70,9 @@ func NewRouter(database *db.Database, redisCache *cache.Cache, engine *trading.E
 
 	// --- Ruta de Índice de Miedo & Codicia por activo ---
 	mux.HandleFunc("GET /api/feargreed/{simbolo}", server.handleGetFearGreed)
+
+	// --- Ruta de Sentimiento de Mercado (Analyst Ratings + Short Interest) ---
+	mux.HandleFunc("GET /api/sentimiento/{simbolo}", server.handleGetSentiment)
 
 	// --- Rutas de IA (DeepSeek) ---
 	mux.HandleFunc("POST /api/ia/senal/{simbolo}", server.handleGenerateAISignal)
