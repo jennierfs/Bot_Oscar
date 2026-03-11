@@ -174,19 +174,19 @@ type MarketSentiment struct {
 
 // AnalystRatings contiene las recomendaciones de analistas de Wall Street
 type AnalystRatings struct {
-	StrongBuy  int     `json:"strongBuy"`  // Compra fuerte
-	Buy        int     `json:"buy"`        // Compra
-	Hold       int     `json:"hold"`       // Mantener
-	Sell       int     `json:"sell"`       // Venta
-	StrongSell int     `json:"strongSell"` // Venta fuerte
-	Total      int     `json:"total"`      // Total de analistas
-	BuyPercent float64 `json:"buyPercent"` // % que dicen compra (strongBuy+buy)/total
-	SellPercent float64 `json:"sellPercent"` // % que dicen venta (strongSell+sell)/total
-	Consensus  string  `json:"consensus"`  // "Compra Fuerte", "Compra", "Mantener", "Venta", "Venta Fuerte"
-	TargetHigh float64 `json:"targetHigh"` // Precio objetivo más alto
-	TargetLow  float64 `json:"targetLow"`  // Precio objetivo más bajo
-	TargetMean float64 `json:"targetMean"` // Precio objetivo promedio
-	CurrentPrice float64 `json:"currentPrice"` // Precio actual
+	StrongBuy     int     `json:"strongBuy"`     // Compra fuerte
+	Buy           int     `json:"buy"`           // Compra
+	Hold          int     `json:"hold"`          // Mantener
+	Sell          int     `json:"sell"`          // Venta
+	StrongSell    int     `json:"strongSell"`    // Venta fuerte
+	Total         int     `json:"total"`         // Total de analistas
+	BuyPercent    float64 `json:"buyPercent"`    // % que dicen compra (strongBuy+buy)/total
+	SellPercent   float64 `json:"sellPercent"`   // % que dicen venta (strongSell+sell)/total
+	Consensus     string  `json:"consensus"`     // "Compra Fuerte", "Compra", "Mantener", "Venta", "Venta Fuerte"
+	TargetHigh    float64 `json:"targetHigh"`    // Precio objetivo más alto
+	TargetLow     float64 `json:"targetLow"`     // Precio objetivo más bajo
+	TargetMean    float64 `json:"targetMean"`    // Precio objetivo promedio
+	CurrentPrice  float64 `json:"currentPrice"`  // Precio actual
 	UpsidePercent float64 `json:"upsidePercent"` // % de potencial subida/bajada al target medio
 }
 

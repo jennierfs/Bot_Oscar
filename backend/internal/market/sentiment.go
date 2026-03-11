@@ -36,9 +36,9 @@ type SentimentProvider struct {
 	client *http.Client
 
 	// Yahoo Finance requiere crumb+cookie para la API v10
-	mu     sync.Mutex
-	crumb  string
-	cookie string
+	mu          sync.Mutex
+	crumb       string
+	cookie      string
 	crumbExpiry time.Time
 }
 
@@ -127,11 +127,11 @@ type yahooQuoteSummaryResult struct {
 	} `json:"financialData"`
 
 	DefaultKeyStatistics struct {
-		SharesShort           yahooRawValue `json:"sharesShort"`
-		ShortRatio            yahooRawValue `json:"shortRatio"`
-		ShortPercentOfFloat   yahooRawValue `json:"shortPercentOfFloat"`
-		FloatShares           yahooRawValue `json:"floatShares"`
-		SharesOutstanding     yahooRawValue `json:"sharesOutstanding"`
+		SharesShort         yahooRawValue `json:"sharesShort"`
+		ShortRatio          yahooRawValue `json:"shortRatio"`
+		ShortPercentOfFloat yahooRawValue `json:"shortPercentOfFloat"`
+		FloatShares         yahooRawValue `json:"floatShares"`
+		SharesOutstanding   yahooRawValue `json:"sharesOutstanding"`
 	} `json:"defaultKeyStatistics"`
 }
 
@@ -361,19 +361,19 @@ func (sp *SentimentProvider) parseAnalystRatings(data *yahooQuoteSummaryResult) 
 	}
 
 	return &models.AnalystRatings{
-		StrongBuy:    strongBuy,
-		Buy:          buy,
-		Hold:         hold,
-		Sell:         sell,
-		StrongSell:   strongSell,
-		Total:        total,
-		BuyPercent:   buyPct,
-		SellPercent:  sellPct,
-		Consensus:    consensus,
-		TargetHigh:   data.FinancialData.TargetHighPrice.Raw,
-		TargetLow:    data.FinancialData.TargetLowPrice.Raw,
-		TargetMean:   targetMean,
-		CurrentPrice: currentPrice,
+		StrongBuy:     strongBuy,
+		Buy:           buy,
+		Hold:          hold,
+		Sell:          sell,
+		StrongSell:    strongSell,
+		Total:         total,
+		BuyPercent:    buyPct,
+		SellPercent:   sellPct,
+		Consensus:     consensus,
+		TargetHigh:    data.FinancialData.TargetHighPrice.Raw,
+		TargetLow:     data.FinancialData.TargetLowPrice.Raw,
+		TargetMean:    targetMean,
+		CurrentPrice:  currentPrice,
 		UpsidePercent: upsidePercent,
 	}
 }
