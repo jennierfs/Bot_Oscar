@@ -57,8 +57,9 @@ export const generateAISignal = (symbol: string) =>
   api.post<AISignal>(`/ia/senal/${symbol}`, null, { timeout: 60000 }).then(res => res.data);
 
 // ---- Índice de Miedo & Codicia por activo ----
+// Timeout más largo (30s) para cuando no hay caché y debe calcular desde Twelve Data
 export const getFearGreed = (symbol: string) =>
-  api.get<FearGreedResult>(`/feargreed/${symbol}`).then(res => res.data);
+  api.get<FearGreedResult>(`/feargreed/${symbol}`, { timeout: 30000 }).then(res => res.data);
 
 // ---- Sentimiento de Mercado (Analyst Ratings + Short Interest) ----
 export const getSentiment = (symbol: string) =>

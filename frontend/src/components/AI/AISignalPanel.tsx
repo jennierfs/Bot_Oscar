@@ -19,7 +19,7 @@ import {
   CheckCircle,
   CandlestickChart,
 } from 'lucide-react';
-import type { AISignal, Asset, PatternItem } from '../../types';
+import type { AISignal, Asset, PatternItem, DivergenceItem } from '../../types';
 
 interface AISignalPanelProps {
   selectedAsset: Asset | null;
@@ -325,6 +325,76 @@ export default function AISignalPanel({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* Sección de Divergencias RSI/MACD (anticipatorias)  */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {aiSignal.divergences && aiSignal.divergences.divergences.length > 0 && (
+            <div className="bg-oscar-dark/40 border border-gray-800/50 rounded-lg p-4 animate-fade-in">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span className="text-base">🔀</span>
+                  Divergencias Detectadas
+                  <span className="text-[9px] bg-blue-500/15 text-blue-300 border border-blue-500/25 px-1.5 py-0.5 rounded-full ml-1">
+                    ANTICIPATORIA
+                  </span>
+                </h4>
+                <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  aiSignal.divergences.strongestSignal === 'COMPRA'
+                    ? 'bg-oscar-green/10 text-oscar-green border-oscar-green/30'
+                    : aiSignal.divergences.strongestSignal === 'VENTA'
+                    ? 'bg-oscar-red/10 text-oscar-red border-oscar-red/30'
+                    : 'bg-oscar-gray/10 text-oscar-gray border-oscar-gray/30'
+                }`}>
+                  {aiSignal.divergences.strongestSignal === 'COMPRA' ? '▲' : aiSignal.divergences.strongestSignal === 'VENTA' ? '▼' : '—'} {aiSignal.divergences.strongestSignal}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {aiSignal.divergences.divergences.map((d: DivergenceItem, i: number) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg p-3 border ${
+                      d.signal === 'COMPRA'
+                        ? 'bg-oscar-green/5 border-oscar-green/20'
+                        : 'bg-oscar-red/5 border-oscar-red/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          d.signal === 'COMPRA'
+                            ? 'bg-oscar-green/15 text-oscar-green'
+                            : 'bg-oscar-red/15 text-oscar-red'
+                        }`}>
+                          {d.indicator}
+                        </span>
+                        <span className={`text-[10px] font-semibold ${
+                          d.type.includes('ALCISTA') ? 'text-oscar-green' : 'text-oscar-red'
+                        }`}>
+                          {d.type === 'ALCISTA' ? '↑ Divergencia Alcista'
+                            : d.type === 'BAJISTA' ? '↓ Divergencia Bajista'
+                            : d.type === 'OCULTA_ALCISTA' ? '↑ Div. Oculta Alcista'
+                            : '↓ Div. Oculta Bajista'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-oscar-gold">
+                          {'★'.repeat(d.strength)}{'☆'.repeat(3 - d.strength)}
+                        </span>
+                        <span className="text-[9px] text-oscar-gray">hace {d.barsAgo} velas</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-oscar-gray leading-relaxed">{d.details}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[8px] text-blue-300/50 mt-2 leading-snug">
+                💡 Las divergencias detectan agotamiento de tendencia ANTES de que el precio reaccione — son señales anticipatorias.
+              </p>
             </div>
           )}
 

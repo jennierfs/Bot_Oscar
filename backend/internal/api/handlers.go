@@ -6,9 +6,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"bot-oscar/internal/models"
 	"bot-oscar/internal/patterns"
@@ -358,12 +360,25 @@ func (s *Server) handleGenerateAISignal(w http.ResponseWriter, r *http.Request) 
 
 // handleGetFearGreed calcula el índice de Miedo & Codicia para un activo específico
 // Cada activo se calcula de forma INDEPENDIENTE con sus propios indicadores
+// Usa caché Redis (TTL 5 min) para evitar rate limiting en Twelve Data
 func (s *Server) handleGetFearGreed(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("simbolo")
 	if symbol == "" {
 		jsonError(w, http.StatusBadRequest, "Símbolo requerido")
 		return
 	}
+
+	// 1. Intentar obtener de caché Redis primero
+	cacheKey := fmt.Sprintf("feargreed:%s", symbol)
+	var cached trading.FearGreedResult
+	if err := s.cache.GetJSON(r.Context(), cacheKey, &cached); err == nil {
+		log.Printf("📦 [%s] Fear&Greed servido desde caché (score: %d)", symbol, cached.Score)
+		jsonResponse(w, http.StatusOK, cached)
+		return
+	}
+
+	// 2. No hay caché → calcular desde cero
+	log.Printf("🔄 [%s] Fear&Greed: calculando (sin caché)", symbol)
 
 	// Buscar el activo por símbolo
 	assets, err := s.db.GetActiveAssets(r.Context())
@@ -401,6 +416,12 @@ func (s *Server) handleGetFearGreed(w http.ResponseWriter, r *http.Request) {
 			// Calcular Fear & Greed usando SOLO los datos de ESTE activo
 			result := trading.CalculateFearGreed(*indicators, currentPrice, asset.Name)
 
+			// 3. Guardar en caché Redis con TTL de 5 minutos
+			if cacheErr := s.cache.SetJSON(r.Context(), cacheKey, result, 5*time.Minute); cacheErr != nil {
+				log.Printf("⚠️ [%s] Error guardando Fear&Greed en caché: %v", symbol, cacheErr)
+			}
+
+			log.Printf("✅ [%s] Fear&Greed calculado y cacheado (score: %d, label: %s)", symbol, result.Score, result.Label)
 			jsonResponse(w, http.StatusOK, result)
 			return
 		}

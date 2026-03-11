@@ -139,6 +139,7 @@ export interface AISignal {
   timestamp: string;
   model: string;          // Modelo de IA usado
   patterns?: PatternData; // Patrones de velas detectados
+  divergences?: DivergenceData; // Divergencias RSI/MACD detectadas
 }
 
 // Datos de patrones de velas japonesas detectados
@@ -220,4 +221,27 @@ export interface ShortInterest {
   sharesShort: number;
   sharesFloat: number;
   level: string; // "Bajo", "Moderado", "Alto", "Muy Alto"
+}
+
+// ============================================
+// Divergencias RSI/MACD vs Precio (señales anticipatorias)
+// ============================================
+
+// Resultado del análisis de divergencias
+export interface DivergenceData {
+  divergences: DivergenceItem[];  // Lista de divergencias detectadas
+  hasBullish: boolean;            // ¿Hay alcistas?
+  hasBearish: boolean;            // ¿Hay bajistas?
+  strongestSignal: string;        // "COMPRA", "VENTA", "NINGUNA"
+  maxStrength: number;            // Fuerza máxima (1-3)
+}
+
+// Una divergencia individual detectada
+export interface DivergenceItem {
+  type: string;       // ALCISTA, BAJISTA, OCULTA_ALCISTA, OCULTA_BAJISTA
+  indicator: string;  // "RSI" o "MACD"
+  strength: number;   // 1-3 (estrellas)
+  signal: string;     // "COMPRA" o "VENTA"
+  details: string;    // Explicación legible
+  barsAgo: number;    // Hace cuántas velas
 }

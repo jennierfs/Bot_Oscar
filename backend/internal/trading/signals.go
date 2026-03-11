@@ -260,6 +260,42 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	}
 
 	// ============================================
+	// 13. DIVERGENCIAS RSI/MACD (peso: ±10)
+	//     Señales anticipatorias: detectan agotamiento de tendencia
+	//     ANTES de que el precio reaccione
+	// ============================================
+	if ind.Divergences != nil && len(ind.Divergences.Divergences) > 0 {
+		divAdjust := 0
+		for _, d := range ind.Divergences.Divergences {
+			// Peso basado en fuerza de la divergencia
+			weight := 3 // base por divergencia débil
+			if d.Strength >= 3 {
+				weight = 7
+			} else if d.Strength >= 2 {
+				weight = 5
+			}
+
+			if d.Signal == "COMPRA" {
+				divAdjust += weight
+			} else {
+				divAdjust -= weight
+			}
+		}
+		// Cap: máximo ±10 puntos por divergencias
+		if divAdjust > 10 {
+			divAdjust = 10
+		} else if divAdjust < -10 {
+			divAdjust = -10
+		}
+		score += divAdjust
+		if divAdjust > 0 {
+			reasons = append(reasons, fmt.Sprintf("Divergencia(s) ALCISTA(s) detectada(s) → señal anticipatoria de rebote (+%d pts)", divAdjust))
+		} else if divAdjust < 0 {
+			reasons = append(reasons, fmt.Sprintf("Divergencia(s) BAJISTA(s) detectada(s) → señal anticipatoria de caída (%d pts)", divAdjust))
+		}
+	}
+
+	// ============================================
 	// Limitar puntuación al rango 0-100
 	// ============================================
 	if score < 0 {

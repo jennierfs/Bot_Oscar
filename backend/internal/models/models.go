@@ -113,9 +113,32 @@ type IndicatorValues struct {
 	VolumenHoy   int64   `json:"volumenHoy"`   // Volumen del último día
 	VolumenRatio float64 `json:"volumenRatio"` // Ratio volumen hoy / promedio (>1.5 = pico)
 
+	// === DIVERGENCIAS (señales anticipatorias) ===
+	Divergences *DivergenceData `json:"divergences,omitempty"` // Divergencias RSI/MACD vs Precio
+
 	// === RESULTADO ===
 	Score  int    `json:"score"`  // Puntuación de confluencia 0-100
 	Signal string `json:"signal"` // "COMPRA", "VENTA", "MANTENER"
+}
+
+// DivergenceData datos de divergencias detectadas para el frontend
+type DivergenceData struct {
+	Divergences     []DivergenceItem `json:"divergences"`     // Lista de divergencias
+	HasBullish      bool             `json:"hasBullish"`      // ¿Hay alcistas?
+	HasBearish      bool             `json:"hasBearish"`      // ¿Hay bajistas?
+	StrongestSignal string           `json:"strongestSignal"` // "COMPRA", "VENTA", "NINGUNA"
+	MaxStrength     int              `json:"maxStrength"`     // Fuerza máxima (1-3)
+	SummaryForAI    string           `json:"-"`               // Resumen para DeepSeek (no se envía al frontend)
+}
+
+// DivergenceItem una divergencia individual
+type DivergenceItem struct {
+	Type      string  `json:"type"`      // ALCISTA, BAJISTA, OCULTA_ALCISTA, OCULTA_BAJISTA
+	Indicator string  `json:"indicator"` // "RSI" o "MACD"
+	Strength  int     `json:"strength"`  // 1-3
+	Signal    string  `json:"signal"`    // "COMPRA" o "VENTA"
+	Details   string  `json:"details"`   // Explicación legible
+	BarsAgo   int     `json:"barsAgo"`   // Hace cuántas velas
 }
 
 // MACDValues contiene las 3 líneas del MACD

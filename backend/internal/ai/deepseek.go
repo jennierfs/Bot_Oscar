@@ -52,6 +52,9 @@ type AISignalResponse struct {
 
 	// Patrones de velas detectados (para mostrar en la UI)
 	Patterns *PatternData `json:"patterns,omitempty"` // nil si no se detectaron
+
+	// Divergencias RSI/MACD detectadas (señales anticipatorias)
+	DivergenceData *models.DivergenceData `json:"divergences,omitempty"` // nil si no se detectaron
 }
 
 // PatternData datos de patrones para el frontend
@@ -143,7 +146,7 @@ func (c *DeepSeekClient) GenerateSignal(
 		return nil, fmt.Errorf("no hay indicadores calculados para %s", asset.Symbol)
 	}
 
-	// Construir el prompt con TODOS los datos numéricos reales + patrones de velas + sentimiento
+	// Construir el prompt con TODOS los datos numéricos reales + patrones de velas + sentimiento + divergencias
 	prompt := buildAnalysisPrompt(asset, indicators, prices, patternAnalysis, fearGreed)
 
 	log.Printf("🧠 [%s] Enviando datos a DeepSeek para análisis IA...", asset.Symbol)
@@ -201,6 +204,11 @@ func (c *DeepSeekClient) GenerateSignal(
 	// Agregar datos de patrones a la respuesta para la UI
 	if patternAnalysis != nil && len(patternAnalysis.PatternsFound) > 0 {
 		aiSignal.Patterns = buildPatternData(patternAnalysis)
+	}
+
+	// Agregar datos de divergencias a la respuesta para la UI
+	if indicators.Divergences != nil {
+		aiSignal.DivergenceData = indicators.Divergences
 	}
 
 	log.Printf("✅ [%s] Señal IA generada: %s (confianza: %d%%)", asset.Symbol, aiSignal.Signal, aiSignal.Confidence)
@@ -368,6 +376,31 @@ No se detectaron patrones de velas significativos en %s en los timeframes analiz
 `, asset.Symbol)
 	}
 
+	// Generar sección de divergencias (señales anticipatorias)
+	divergenceSection := ""
+	if ind.Divergences != nil && len(ind.Divergences.Divergences) > 0 {
+		divergenceSection = fmt.Sprintf(`
+
+=== DIVERGENCIAS DETECTADAS (SEÑALES ANTICIPATORIAS) — %s ===
+%s
+IMPORTANTE sobre divergencias:
+- Las divergencias son la señal MÁS ANTICIPATORIA del análisis técnico.
+- Detectan agotamiento de tendencia ANTES de que el precio reaccione.
+- Una divergencia ALCISTA (precio baja pero RSI/MACD sube) = la presión vendedora se agota → probable rebote.
+- Una divergencia BAJISTA (precio sube pero RSI/MACD baja) = la presión compradora se agota → probable caída.
+- Divergencias FUERTES (3 estrellas) merecen alta atención.
+- Si hay divergencia + patrón de velas confirmando en la misma dirección = señal MUY FUERTE.
+- Si hay divergencia contraria a la tendencia EMA200 = posible cambio de tendencia mayor.
+- INCLUYE las divergencias detectadas en tu análisis y en keyFactors.
+`, asset.Symbol, ind.Divergences.SummaryForAI)
+	} else {
+		divergenceSection = fmt.Sprintf(`
+
+=== DIVERGENCIAS ===
+No se detectaron divergencias RSI/MACD vs Precio en %s en la ventana de análisis.
+`, asset.Symbol)
+	}
+
 	prompt := fmt.Sprintf(`Eres un trader profesional institucional con más de 20 años de experiencia en análisis técnico y lectura de patrones de velas japonesas. Analiza estos datos REALES y genera una señal de trading precisa.
 
 === ACTIVO ===
@@ -404,7 +437,7 @@ Posición Bollinger: %s
 
 === PUNTUACIÓN DEL SISTEMA ===
 Confluencia: %d/100 → %s
-%s%s
+%s%s%s
 === ÚLTIMAS 20 VELAS DIARIAS ===
 %s
 === INSTRUCCIONES ===
@@ -416,8 +449,9 @@ Confluencia: %d/100 → %s
 6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = ignorar.
 7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
 8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. El sentimiento CONFIRMA la dirección: Miedo (0-40) = CONFIRMA presión bajista → más probabilidad de VENTA. Codicia (60-100) = CONFIRMA presión alcista → más probabilidad de COMPRA. Si el sentimiento es Miedo y los indicadores son bajistas, AUMENTA tu confidence en VENTA. Si el sentimiento es Codicia y los indicadores son alcistas, AUMENTA tu confidence en COMPRA. Si hay contradicción (miedo + indicadores alcistas, o codicia + indicadores bajistas), BAJA tu confidence y considera MANTENER. INCLUYE el sentimiento en tu análisis y en keyFactors.
-9. Sé HONESTO: si hay contradicción entre indicadores, patrones y sentimiento, di "MANTENER".
-10. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
+9. DIVERGENCIAS: Las divergencias RSI/MACD vs Precio son señales ANTICIPATORIAS — detectan agotamiento de tendencia ANTES de que el precio reaccione. Si hay una divergencia alcista FUERTE + patrón de velas alcista = señal MUY anticipatoria de COMPRA. Si hay divergencia bajista FUERTE + RSI sobrecomprado = señal MUY anticipatoria de VENTA. INCLUYE las divergencias en tu análisis y en keyFactors.
+10. Sé HONESTO: si hay contradicción entre indicadores, patrones, sentimiento y divergencias, di "MANTENER".
+11. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
 
 === REGLA CRÍTICA: STOP LOSS Y TAKE PROFIT OBLIGATORIOS ===
 SIEMPRE proporciona valores numéricos concretos (mayor que 0) para stopLoss y takeProfit.
@@ -459,6 +493,8 @@ Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
 		patternSection,
 		// Sentimiento de mercado (Fear & Greed) exclusivo del activo
 		sentimentSection,
+		// Divergencias RSI/MACD (señales anticipatorias)
+		divergenceSection,
 		// Velas raw
 		recentCandles.String(),
 	)

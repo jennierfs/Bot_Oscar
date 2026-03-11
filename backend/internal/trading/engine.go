@@ -309,6 +309,38 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	}
 
 	// ============================================
+	// Detectar divergencias RSI/MACD vs Precio (señales anticipatorias)
+	// ============================================
+	var macdHistSlice []float64
+	if macdResult != nil {
+		macdHistSlice = macdResult.Histogram
+	}
+	divResult := indicators.DetectDivergences(closes, rsiValues, macdHistSlice, 25)
+	if divResult != nil && len(divResult.Divergences) > 0 {
+		divData := &models.DivergenceData{
+			Divergences:     make([]models.DivergenceItem, 0, len(divResult.Divergences)),
+			HasBullish:      divResult.HasBullish,
+			HasBearish:      divResult.HasBearish,
+			StrongestSignal: divResult.StrongestSignal,
+			MaxStrength:     divResult.MaxStrength,
+			SummaryForAI:    divResult.SummaryForAI,
+		}
+		for _, d := range divResult.Divergences {
+			divData.Divergences = append(divData.Divergences, models.DivergenceItem{
+				Type:      string(d.Type),
+				Indicator: d.Indicator,
+				Strength:  d.Strength,
+				Signal:    d.Signal,
+				Details:   d.Details,
+				BarsAgo:   d.BarsAgo,
+			})
+		}
+		indValues.Divergences = divData
+		log.Printf("🔀 [%s] Divergencias detectadas: %d (señal más fuerte: %s, fuerza: %d)",
+			asset.Symbol, len(divResult.Divergences), divResult.StrongestSignal, divResult.MaxStrength)
+	}
+
+	// ============================================
 	// Evaluar confluencia profesional y generar puntuación
 	// ============================================
 	currentPrice := closes[len(closes)-1]
