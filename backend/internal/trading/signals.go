@@ -3,11 +3,11 @@
 // Sistema de confluencia profesional que evalúa múltiples indicadores
 // como lo haría un trader institucional con +20 años de experiencia
 //
-// Distribución de pesos (total teórico: ±100 desde base 50):
+// Distribución de pesos (optimizado para precisión):
 //
-//	TENDENCIA (peso máximo: ±35)
-//	  - Precio vs EMA200:        ±12  (la más importante)
-//	  - EMA50 vs EMA200:         ±10  (Golden/Death Cross exponencial)
+//	TENDENCIA (peso máximo: ±32)
+//	  - Precio vs EMA200:        ±5/8/12  (escala por proximidad al EMA)
+//	  - EMA50 vs EMA200:         ±7  (Golden/Death Cross exponencial)
 //	  - Precio vs EMA50:          ±8  (tendencia intermedia)
 //	  - Precio vs EMA21:          ±5  (pullback)
 //
@@ -16,24 +16,31 @@
 //	  - RSI zonas extremas:       ±8
 //
 //	VOLUMEN (peso máximo: ±15)
-//	  - Precio vs VWAP:          ±10  (clave institucional)
+//	  - Precio vs VWAP:          ±10  (dirección corregida: sobre VWAP = alcista)
 //	  - Pico de volumen:          ±5  (confirma movimiento)
 //
 //	VOLATILIDAD (peso máximo: ±15)
 //	  - Bollinger Bands:         ±10
 //	  - EMA12 vs EMA26:          ±5  (cruce rápido)
 //
-//	ESTRUCTURA (peso máximo: ±15)
-//	  - SMA50 vs SMA200:         ±8  (Golden/Death Cross clásico)
-//	  - Precio vs SMA200:        ±7  (soporte/resistencia dinámica)
+//	ESTRUCTURA (peso máximo: ±9, reducido por redundancia con EMAs)
+//	  - SMA50 vs SMA200:         ±5  (Golden/Death Cross clásico)
+//	  - Precio vs SMA200:        ±4  (soporte/resistencia dinámica)
+//
+//	DIVERGENCIAS (peso máximo: ±10)
+//	  - Divergencias RSI/MACD:   ±10
+//
+// Verificación multi-categoría:
+//
+//	Antes de emitir COMPRA o VENTA, al menos 3 de 4 categorías
+//	independientes (Tendencia, Momentum, Volumen, Volatilidad)
+//	deben confirmar la dirección. Si no, se fuerza MANTENER.
 //
 // Resultado:
 //
-//	0-30  → Señal fuerte de VENTA
-//	30-45 → Señal de VENTA
-//	45-55 → MANTENER (sin confluencia clara)
-//	55-70 → Señal de COMPRA
-//	70-100 → Señal fuerte de COMPRA
+//	0-30  → Señal de VENTA (con ≥3/4 categorías confirmando)
+//	30-70 → MANTENER (confluencia insuficiente)
+//	70-100 → Señal de COMPRA (con ≥3/4 categorías confirmando)
 //
 // ============================================
 package trading
@@ -58,14 +65,27 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	//    Si está debajo = mercado bajista.
 	// ============================================
 	if ind.EMA200 > 0 {
+		distancia := ((currentPrice - ind.EMA200) / ind.EMA200) * 100
 		if currentPrice > ind.EMA200 {
-			score += 12
-			distancia := ((currentPrice - ind.EMA200) / ind.EMA200) * 100
-			reasons = append(reasons, fmt.Sprintf("Precio SOBRE EMA200 (+%.1f%%) → tendencia alcista", distancia))
+			// Escala por proximidad: <1% = +5, 1-3% = +8, >3% = +12
+			pts := 5
+			if distancia > 3.0 {
+				pts = 12
+			} else if distancia > 1.0 {
+				pts = 8
+			}
+			score += pts
+			reasons = append(reasons, fmt.Sprintf("Precio SOBRE EMA200 (+%.1f%%) → tendencia alcista [+%d]", distancia, pts))
 		} else {
-			score -= 12
-			distancia := ((ind.EMA200 - currentPrice) / ind.EMA200) * 100
-			reasons = append(reasons, fmt.Sprintf("Precio BAJO EMA200 (-%.1f%%) → tendencia bajista", distancia))
+			distNeg := -distancia
+			pts := 5
+			if distNeg > 3.0 {
+				pts = 12
+			} else if distNeg > 1.0 {
+				pts = 8
+			}
+			score -= pts
+			reasons = append(reasons, fmt.Sprintf("Precio BAJO EMA200 (-%.1f%%) → tendencia bajista [-%d]", distNeg, pts))
 		}
 	}
 
@@ -76,10 +96,10 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	// ============================================
 	if ind.EMA50 > 0 && ind.EMA200 > 0 {
 		if ind.EMA50 > ind.EMA200 {
-			score += 10
+			score += 7
 			reasons = append(reasons, "Golden Cross EMA (EMA50 > EMA200)")
 		} else {
-			score -= 10
+			score -= 7
 			reasons = append(reasons, "Death Cross EMA (EMA50 < EMA200)")
 		}
 	}
@@ -159,11 +179,11 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	// ============================================
 	if ind.VWAP > 0 {
 		if currentPrice > ind.VWAP {
-			score -= 5 // Precio caro respecto al volumen → presión vendedora
-			reasons = append(reasons, fmt.Sprintf("Precio sobre VWAP ($%.2f) → presión vendedora institucional", ind.VWAP))
+			score += 5 // Precio sobre VWAP → momentum comprador (institucionales compran)
+			reasons = append(reasons, fmt.Sprintf("Precio sobre VWAP ($%.2f) → momentum comprador", ind.VWAP))
 		} else {
-			score += 5 // Precio barato respecto al volumen → compra institucional
-			reasons = append(reasons, fmt.Sprintf("Precio bajo VWAP ($%.2f) → zona de compra institucional", ind.VWAP))
+			score -= 5 // Precio bajo VWAP → momentum vendedor
+			reasons = append(reasons, fmt.Sprintf("Precio bajo VWAP ($%.2f) → momentum vendedor", ind.VWAP))
 		}
 
 		// VWAP + tendencia: si precio está sobre VWAP Y sobre EMA200 → muy alcista
@@ -237,10 +257,10 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	// ============================================
 	if ind.SMA50 > 0 && ind.SMA200 > 0 {
 		if ind.SMA50 > ind.SMA200 {
-			score += 8
+			score += 5
 			reasons = append(reasons, "Golden Cross clásico (SMA50 > SMA200)")
 		} else {
-			score -= 8
+			score -= 5
 			reasons = append(reasons, "Death Cross clásico (SMA50 < SMA200)")
 		}
 	}
@@ -251,10 +271,10 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 	// ============================================
 	if ind.SMA200 > 0 {
 		if currentPrice > ind.SMA200 {
-			score += 7
+			score += 4
 			reasons = append(reasons, "Precio sobre SMA200 (soporte dinámico respetado)")
 		} else {
-			score -= 7
+			score -= 4
 			reasons = append(reasons, "Precio bajo SMA200 (resistencia dinámica)")
 		}
 	}
@@ -307,12 +327,74 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 
 	// ============================================
 	// Determinar tipo de señal basado en puntuación
+	// Umbrales estrictos: 70/30 para mayor precisión
 	// ============================================
 	signalType := "MANTENER"
-	if score >= 65 {
+	if score >= 70 {
 		signalType = "COMPRA"
-	} else if score <= 35 {
+	} else if score <= 30 {
 		signalType = "VENTA"
+	}
+
+	// ============================================
+	// Verificación de confluencia multi-categoría
+	// Para evitar señales falsas, al menos 3 de 4 categorías
+	// independientes deben confirmar la dirección.
+	// Si no hay suficiente confluencia, se fuerza MANTENER
+	// y el score se neutraliza para que el sentimiento
+	// no lo reactive.
+	// ============================================
+	if signalType != "MANTENER" {
+		bullishConf := 0
+		bearishConf := 0
+
+		// Categoría 1: Tendencia (precio vs EMA200)
+		if ind.EMA200 > 0 {
+			if currentPrice > ind.EMA200 {
+				bullishConf++
+			} else {
+				bearishConf++
+			}
+		}
+
+		// Categoría 2: Momentum (MACD + RSI deben alinearse)
+		macdAlcista := ind.MACD.MACD > ind.MACD.Signal
+		rsiAlcista := ind.RSI > 45
+		if macdAlcista && rsiAlcista {
+			bullishConf++
+		} else if !macdAlcista && !rsiAlcista {
+			bearishConf++
+		}
+
+		// Categoría 3: Volumen (precio vs VWAP)
+		if ind.VWAP > 0 {
+			if currentPrice > ind.VWAP {
+				bullishConf++
+			} else {
+				bearishConf++
+			}
+		}
+
+		// Categoría 4: Volatilidad (posición en Bollinger)
+		if ind.Bollinger.Lower > 0 && ind.Bollinger.Upper > 0 {
+			medioBB := (ind.Bollinger.Upper + ind.Bollinger.Lower) / 2
+			if currentPrice > medioBB {
+				bullishConf++
+			} else {
+				bearishConf++
+			}
+		}
+
+		// Gate: mínimo 3 de 4 categorías deben confirmar
+		if signalType == "COMPRA" && bullishConf < 3 {
+			score = 50 // Neutralizar para que sentimiento no reactive la señal
+			signalType = "MANTENER"
+			reasons = append(reasons, fmt.Sprintf("⚠️ Confluencia insuficiente: solo %d/4 categorías confirman COMPRA → se requieren 3", bullishConf))
+		} else if signalType == "VENTA" && bearishConf < 3 {
+			score = 50
+			signalType = "MANTENER"
+			reasons = append(reasons, fmt.Sprintf("⚠️ Confluencia insuficiente: solo %d/4 categorías confirman VENTA → se requieren 3", bearishConf))
+		}
 	}
 
 	reason := strings.Join(reasons, " | ")
@@ -379,9 +461,9 @@ func AdjustScoreWithSentiment(score int, fg *FearGreedResult) (int, string, stri
 
 // classifySignal determina el tipo de señal basado en la puntuación
 func classifySignal(score int) string {
-	if score >= 65 {
+	if score >= 70 {
 		return "COMPRA"
-	} else if score <= 35 {
+	} else if score <= 30 {
 		return "VENTA"
 	}
 	return "MANTENER"

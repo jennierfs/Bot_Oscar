@@ -56,7 +56,7 @@ func Load() *Config {
 		RiskRewardRatio:    getEnvFloat("RISK_REWARD_RATIO", 2.0),
 		MaxOpenTrades:      getEnvInt("MAX_OPEN_TRADES", 5),
 		AnalysisInterval:   getEnvInt("ANALYSIS_INTERVAL", 60),
-		MinSignalScore:     getEnvInt("MIN_SIGNAL_SCORE", 65),
+		MinSignalScore:     getEnvInt("MIN_SIGNAL_SCORE", 70),
 	}
 }
 
