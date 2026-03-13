@@ -382,8 +382,34 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	// Miedo → baja el score (más probabilidad de VENTA)
 	// Codicia → sube el score (más probabilidad de COMPRA)
 	// ============================================
+	// Guardar señal pre-sentimiento para proteger el filtro de confluencia
+	preSentimentSignal := signalType
+
 	fearGreed := CalculateFearGreed(*indValues, currentPrice, asset.Name)
 	adjustedScore, adjustedSignal, sentimentReason := AdjustScoreWithSentiment(score, &fearGreed)
+
+	// ============================================
+	// PROTECCIÓN: El sentimiento NO puede crear señales
+	// que el análisis técnico no validó con confluencia 3/4.
+	// Si el scoring original dijo MANTENER (no pasó confluencia
+	// de 3/4 categorías o score entre 31-69), el sentimiento
+	// puede mover el score pero NO puede cruzar los umbrales 70/30.
+	// Razón: el Fear&Greed se calcula con los MISMOS indicadores
+	// ya puntuados → no es información nueva, solo amplificación.
+	// Un trader profesional nunca abre posición solo por sentimiento.
+	// ============================================
+	if preSentimentSignal == "MANTENER" && adjustedSignal != "MANTENER" {
+		if adjustedScore >= 70 {
+			adjustedScore = 69
+		} else if adjustedScore <= 30 {
+			adjustedScore = 31
+		}
+		adjustedSignal = "MANTENER"
+		if sentimentReason != "" {
+			sentimentReason += " (⚠️ limitado: confluencia técnica insuficiente para cambiar señal)"
+		}
+	}
+
 	if sentimentReason != "" {
 		if reason != "" {
 			reason = reason + " | " + sentimentReason

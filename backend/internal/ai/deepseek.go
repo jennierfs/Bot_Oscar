@@ -474,12 +474,12 @@ Confluencia: %d/100 → %s
 === ÚLTIMAS 20 VELAS DIARIAS ===
 %s
 === INSTRUCCIONES ===
-1. La EMA200 determina la tendencia principal. Si el precio está encima = solo buscar COMPRAS. Si está debajo = solo buscar VENTAS.
+1. La EMA200 determina la tendencia principal. PRIORIDAD: precio encima → buscar COMPRAS. Precio debajo → buscar VENTAS. EXCEPCIÓN VÁLIDA: si hay divergencias FUERTES (3⭐) + Volume Profile o patrones de velas confirmando → se puede considerar operación contra tendencia con confianza reducida y SL más ceñido.
 2. Usa VWAP para confirmar si el precio está caro o barato para institucionales.
 3. ATR te dice la volatilidad real - úsalo para SL/TP realistas.
 4. El volumen confirma o invalida el movimiento. Sin volumen = señal débil.
 5. Busca confluencia de al menos 3-4 indicadores alineados.
-6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = ignorar.
+6. PATRONES DE VELAS: Los patrones detectados son EXCLUSIVOS del activo que estás analizando. Úsalos para confirmar o negar la señal de los indicadores. Una Envolvente Alcista en soporte + RSI sobrevendido = señal fuerte. Un patrón contra la tendencia principal = tratar con precaución, no ignorar automáticamente si hay divergencias que lo respaldan.
 7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
 8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. El sentimiento CONFIRMA la dirección: Miedo (0-40) = CONFIRMA presión bajista → más probabilidad de VENTA. Codicia (60-100) = CONFIRMA presión alcista → más probabilidad de COMPRA. Si el sentimiento es Miedo y los indicadores son bajistas, AUMENTA tu confidence en VENTA. Si el sentimiento es Codicia y los indicadores son alcistas, AUMENTA tu confidence en COMPRA. Si hay contradicción (miedo + indicadores alcistas, o codicia + indicadores bajistas), BAJA tu confidence y considera MANTENER. INCLUYE el sentimiento en tu análisis y en keyFactors.
 9. DIVERGENCIAS: Las divergencias RSI/MACD vs Precio son señales ANTICIPATORIAS — detectan agotamiento de tendencia ANTES de que el precio reaccione. Si hay una divergencia alcista FUERTE + patrón de velas alcista = señal MUY anticipatoria de COMPRA. Si hay divergencia bajista FUERTE + RSI sobrecomprado = señal MUY anticipatoria de VENTA. INCLUYE las divergencias en tu análisis y en keyFactors.
@@ -578,15 +578,15 @@ func (c *DeepSeekClient) callAPI(ctx context.Context, prompt string) (string, er
 				Role: "system",
 				Content: `Eres un trader institucional con más de 20 años de experiencia en mercados financieros. Tu especialidad es análisis técnico avanzado, lectura de price action y patrones de velas japonesas.
 
-REGLAS INQUEBRANTABLES de tu trading:
-1. NUNCA operas contra la tendencia principal (EMA200). Si el precio está debajo de EMA200, SOLO buscas VENTAS.
+REGLAS de tu trading profesional:
+1. La EMA200 define la tendencia principal. PRIORIZA operar en su dirección (precio encima → COMPRA, debajo → VENTA). EXCEPCIÓN: divergencias FUERTES (3⭐) confirmadas por Volume Profile y/o patrones de velas pueden anticipar cambio de tendencia — en ese caso, reduce confianza y ajusta SL más ceñido.
 2. SIEMPRE necesitas confluencia de mínimo 3 indicadores alineados para dar señal.
 3. Si el volumen no confirma el movimiento, la señal es DÉBIL — baja tu confianza.
 4. NUNCA persigues el precio. Si ya subió mucho (RSI > 75), esperas pullback.
 5. El ratio riesgo/beneficio MÍNIMO es 1:2. Si no hay suficiente recorrido, NO operas.
 6. Eres HONESTO: si hay contradicción entre indicadores, dices MANTENER sin dudarlo.
-7. El sentimiento (Fear & Greed) CONFIRMA la dirección: miedo = presión bajista, codicia = presión alcista.
-8. SIEMPRE proporcionas SL y TP numéricos realistas basados en soportes/resistencias reales.
+7. El sentimiento (Fear & Greed) es una referencia complementaria. Úsalo como confirmación, no como señal principal — los indicadores técnicos tienen prioridad.
+8. SIEMPRE proporcionas SL y TP numéricos realistas basados en soportes/resistencias reales (HVN del Volume Profile, EMA200, bandas Bollinger).
 
 Solo respondes en JSON válido. Nunca garantizas ganancias.`,
 			},

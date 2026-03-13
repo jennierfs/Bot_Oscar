@@ -177,8 +177,9 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 
 	// ============================================
 	// 7. VOLUMEN - VWAP (peso: ±10)
-	//    Los institucionales compran debajo del VWAP
-	//    y venden encima del VWAP
+	//    Precio sobre VWAP = compradores dominan (momentum alcista)
+	//    Precio bajo VWAP = vendedores dominan (momentum bajista)
+	//    Los institucionales acumulan debajo del VWAP y distribuyen encima
 	// ============================================
 	if ind.VWAP > 0 {
 		if currentPrice > ind.VWAP {
@@ -339,11 +340,12 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 			// Dentro del VA pero encima del POC = sesgo alcista leve
 			score += 3
 			reasons = append(reasons, fmt.Sprintf("Precio sobre POC ($%.2f > $%.2f) dentro del Value Area → sesgo alcista moderado [+3]", currentPrice, vp.POC))
-		} else {
+		} else if currentPrice < vp.POC {
 			// Dentro del VA pero debajo del POC = sesgo bajista leve
 			score -= 3
 			reasons = append(reasons, fmt.Sprintf("Precio bajo POC ($%.2f < $%.2f) dentro del Value Area → sesgo bajista moderado [-3]", currentPrice, vp.POC))
 		}
+		// Precio exactamente en POC → máxima indecisión institucional, sin ajuste (neutral)
 	}
 
 	// ============================================
@@ -440,17 +442,23 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 // AdjustScoreWithSentiment ajusta la puntuación de confluencia
 // basado en el sentimiento Fear & Greed del activo.
 //
-// Lógica DIRECCIONAL (NO contrarian):
-//   - Miedo Extremo (0-20)  → -15 puntos (confirma presión bajista fuerte)
-//   - Miedo (21-40)         → -8 puntos  (confirma presión bajista moderada)
-//   - Neutral (41-60)       → 0 puntos   (sin influencia)
-//   - Codicia (61-80)       → +8 puntos  (confirma presión alcista moderada)
-//   - Codicia Extrema (81-100) → +15 puntos (confirma presión alcista fuerte)
+// IMPORTANTE: El Fear&Greed se calcula con los MISMOS indicadores
+// que ya fueron puntuados (RSI, MACD, EMAs, Bollinger, VWAP, SMAs).
+// Por lo tanto el ajuste es MODESTO (±5/±3) para evitar doble conteo.
+// El rol principal del Fear&Greed es:
+//   1. Métrica visual para el usuario (gauge en la UI)
+//   2. Contexto adicional para DeepSeek (que puede interpretarlo)
+//   3. Modulador LEVE del score (no generador de señales)
 //
-// Resultado: el sentimiento REFUERZA la dirección.
+// Pesos reducidos para evitar contradicción con scoring contrarian:
+//   - Miedo Extremo (0-20)  → -5 puntos (presión bajista confirmada)
+//   - Miedo (21-40)         → -3 puntos (presión bajista leve)
+//   - Neutral (41-60)       → 0 puntos  (sin influencia)
+//   - Codicia (61-80)       → +3 puntos (presión alcista leve)
+//   - Codicia Extrema (81-100) → +5 puntos (presión alcista confirmada)
 //
-//	Si hay miedo → más probable que sea VENTA.
-//	Si hay codicia → más probable que sea COMPRA.
+// NOTA: El engine.go tiene una protección adicional que impide
+// que el sentimiento cambie la señal de MANTENER a COMPRA/VENTA.
 //
 // ============================================
 func AdjustScoreWithSentiment(score int, fg *FearGreedResult) (int, string, string) {
@@ -461,22 +469,24 @@ func AdjustScoreWithSentiment(score int, fg *FearGreedResult) (int, string, stri
 	adjustment := 0
 	reason := ""
 
+	// Pesos reducidos: el F&G reutiliza los mismos indicadores del scoring
+	// → evitar doble conteo y contradicción RSI contrarian vs F&G direccional
 	switch {
-	case fg.Score <= 20: // Miedo Extremo → fuerte presión bajista
-		adjustment = -15
-		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → fuerte presión BAJISTA, aumenta probabilidad de VENTA", fg.Label, fg.Score)
-	case fg.Score <= 40: // Miedo → presión bajista moderada
-		adjustment = -8
-		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión bajista moderada", fg.Label, fg.Score)
+	case fg.Score <= 20: // Miedo Extremo → presión bajista confirmada
+		adjustment = -5
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión bajista confirmada [-5]", fg.Label, fg.Score)
+	case fg.Score <= 40: // Miedo → presión bajista leve
+		adjustment = -3
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión bajista leve [-3]", fg.Label, fg.Score)
 	case fg.Score <= 60: // Neutral → sin influencia
 		adjustment = 0
 		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → neutral, sin ajuste", fg.Label, fg.Score)
-	case fg.Score <= 80: // Codicia → presión alcista moderada
-		adjustment = +8
-		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión alcista moderada", fg.Label, fg.Score)
-	default: // Codicia Extrema → fuerte presión alcista
-		adjustment = +15
-		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → fuerte presión ALCISTA, aumenta probabilidad de COMPRA", fg.Label, fg.Score)
+	case fg.Score <= 80: // Codicia → presión alcista leve
+		adjustment = +3
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión alcista leve [+3]", fg.Label, fg.Score)
+	default: // Codicia Extrema → presión alcista confirmada
+		adjustment = +5
+		reason = fmt.Sprintf("Sentimiento: %s (%d/100) → presión alcista confirmada [+5]", fg.Label, fg.Score)
 	}
 
 	score += adjustment
