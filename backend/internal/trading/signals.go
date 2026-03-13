@@ -446,9 +446,9 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 // que ya fueron puntuados (RSI, MACD, EMAs, Bollinger, VWAP, SMAs).
 // Por lo tanto el ajuste es MODESTO (±5/±3) para evitar doble conteo.
 // El rol principal del Fear&Greed es:
-//   1. Métrica visual para el usuario (gauge en la UI)
-//   2. Contexto adicional para DeepSeek (que puede interpretarlo)
-//   3. Modulador LEVE del score (no generador de señales)
+//  1. Métrica visual para el usuario (gauge en la UI)
+//  2. Contexto adicional para DeepSeek (que puede interpretarlo)
+//  3. Modulador LEVE del score (no generador de señales)
 //
 // Pesos reducidos para evitar contradicción con scoring contrarian:
 //   - Miedo Extremo (0-20)  → -5 puntos (presión bajista confirmada)
