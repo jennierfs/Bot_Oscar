@@ -464,8 +464,16 @@ func (s *Server) handleGetSentiment(w http.ResponseWriter, r *http.Request) {
 
 			result, err := s.sentiment.GetSentiment(r.Context(), asset.Symbol, asset.Name)
 			if err != nil {
-				log.Printf("Error obteniendo sentimiento de %s: %v", symbol, err)
-				jsonError(w, http.StatusInternalServerError, "Error obteniendo sentimiento de mercado: "+err.Error())
+				log.Printf("⚠️ Sentimiento no disponible para %s: %v", symbol, err)
+				// Devolver respuesta vacía en vez de error 500
+				// Esto ocurre con ETFs (USO, GLD, SLV, UNG) que no tienen analyst ratings
+				fallback := models.MarketSentiment{
+					Symbol:    asset.Symbol,
+					AssetName: asset.Name,
+					Summary:   "Sin datos de sentimiento disponibles para este activo. Los ETFs no tienen recomendaciones de analistas ni datos de Short Interest en Yahoo Finance.",
+					UpdatedAt: time.Now().Format(time.RFC3339),
+				}
+				jsonResponse(w, http.StatusOK, fallback)
 				return
 			}
 

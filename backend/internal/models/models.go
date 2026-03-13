@@ -116,6 +116,9 @@ type IndicatorValues struct {
 	// === DIVERGENCIAS (señales anticipatorias) ===
 	Divergences *DivergenceData `json:"divergences,omitempty"` // Divergencias RSI/MACD vs Precio
 
+	// === VOLUME PROFILE (zonas institucionales) ===
+	VolumeProfile *VolumeProfileData `json:"volumeProfile,omitempty"` // POC, Value Area, HVN/LVN
+
 	// === RESULTADO ===
 	Score  int    `json:"score"`  // Puntuación de confluencia 0-100
 	Signal string `json:"signal"` // "COMPRA", "VENTA", "MANTENER"
@@ -139,6 +142,27 @@ type DivergenceItem struct {
 	Signal    string `json:"signal"`    // "COMPRA" o "VENTA"
 	Details   string `json:"details"`   // Explicación legible
 	BarsAgo   int    `json:"barsAgo"`   // Hace cuántas velas
+}
+
+// VolumeProfileData datos del Volume Profile para el frontend
+type VolumeProfileData struct {
+	POC       float64          `json:"poc"`       // Point of Control
+	POCVolume int64            `json:"pocVolume"` // Volumen en POC
+	VAH       float64          `json:"vah"`       // Value Area High
+	VAL       float64          `json:"val"`       // Value Area Low
+	HVNs      []VolumeNodeData `json:"hvns"`      // High Volume Nodes
+	LVNs      []VolumeNodeData `json:"lvns"`      // Low Volume Nodes
+	SummaryAI string           `json:"-"`         // Para DeepSeek (no al frontend)
+}
+
+// VolumeNodeData una zona de alto o bajo volumen
+type VolumeNodeData struct {
+	PriceLow  float64 `json:"priceLow"`
+	PriceHigh float64 `json:"priceHigh"`
+	PriceMid  float64 `json:"priceMid"`
+	Volume    int64   `json:"volume"`
+	Percent   float64 `json:"percent"`
+	Type      string  `json:"type"` // "HVN" o "LVN"
 }
 
 // MACDValues contiene las 3 líneas del MACD

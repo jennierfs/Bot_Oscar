@@ -341,6 +341,37 @@ func (e *Engine) AnalyzeAsset(ctx context.Context, asset models.Asset) (*models.
 	}
 
 	// ============================================
+	// Calcular Volume Profile (zonas institucionales de soporte/resistencia)
+	// ============================================
+	vpResult := indicators.CalculateVolumeProfile(highs, lows, closes, volumes, 24, 50)
+	if vpResult != nil {
+		vpData := &models.VolumeProfileData{
+			POC:       vpResult.POC,
+			POCVolume: vpResult.POCVolume,
+			VAH:       vpResult.VAH,
+			VAL:       vpResult.VAL,
+			HVNs:      make([]models.VolumeNodeData, 0, len(vpResult.HVNs)),
+			LVNs:      make([]models.VolumeNodeData, 0, len(vpResult.LVNs)),
+			SummaryAI: vpResult.SummaryAI,
+		}
+		for _, h := range vpResult.HVNs {
+			vpData.HVNs = append(vpData.HVNs, models.VolumeNodeData{
+				PriceLow: h.PriceLow, PriceHigh: h.PriceHigh, PriceMid: h.PriceMid,
+				Volume: h.Volume, Percent: h.Percent, Type: h.Type,
+			})
+		}
+		for _, l := range vpResult.LVNs {
+			vpData.LVNs = append(vpData.LVNs, models.VolumeNodeData{
+				PriceLow: l.PriceLow, PriceHigh: l.PriceHigh, PriceMid: l.PriceMid,
+				Volume: l.Volume, Percent: l.Percent, Type: l.Type,
+			})
+		}
+		indValues.VolumeProfile = vpData
+		log.Printf("📊 [%s] Volume Profile: POC=$%.2f, VA=$%.2f-$%.2f, %d HVNs, %d LVNs",
+			asset.Symbol, vpResult.POC, vpResult.VAL, vpResult.VAH, len(vpResult.HVNs), len(vpResult.LVNs))
+	}
+
+	// ============================================
 	// Evaluar confluencia profesional y generar puntuación
 	// ============================================
 	currentPrice := closes[len(closes)-1]

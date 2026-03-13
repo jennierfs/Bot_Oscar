@@ -140,6 +140,7 @@ export interface AISignal {
   model: string;          // Modelo de IA usado
   patterns?: PatternData; // Patrones de velas detectados
   divergences?: DivergenceData; // Divergencias RSI/MACD detectadas
+  volumeProfile?: VolumeProfileData; // Volume Profile (zonas institucionales)
 }
 
 // Datos de patrones de velas japonesas detectados
@@ -244,4 +245,28 @@ export interface DivergenceItem {
   signal: string;     // "COMPRA" o "VENTA"
   details: string;    // Explicación legible
   barsAgo: number;    // Hace cuántas velas
+}
+
+// ============================================
+// Volume Profile (zonas institucionales de soporte/resistencia)
+// ============================================
+
+// Resultado del Volume Profile
+export interface VolumeProfileData {
+  poc: number;            // Point of Control (precio con más volumen)
+  pocVolume: number;      // Volumen en el POC
+  vah: number;            // Value Area High
+  val: number;            // Value Area Low
+  hvns: VolumeNodeData[]; // High Volume Nodes (soportes/resistencias fuertes)
+  lvns: VolumeNodeData[]; // Low Volume Nodes (gaps de liquidez)
+}
+
+// Una zona de alto o bajo volumen
+export interface VolumeNodeData {
+  priceLow: number;
+  priceHigh: number;
+  priceMid: number;
+  volume: number;
+  percent: number;
+  type: string; // "HVN" o "LVN"
 }

@@ -55,6 +55,9 @@ type AISignalResponse struct {
 
 	// Divergencias RSI/MACD detectadas (señales anticipatorias)
 	DivergenceData *models.DivergenceData `json:"divergences,omitempty"` // nil si no se detectaron
+
+	// Volume Profile (zonas institucionales de soporte/resistencia)
+	VolumeProfileData *models.VolumeProfileData `json:"volumeProfile,omitempty"` // nil si no se calculó
 }
 
 // PatternData datos de patrones para el frontend
@@ -209,6 +212,11 @@ func (c *DeepSeekClient) GenerateSignal(
 	// Agregar datos de divergencias a la respuesta para la UI
 	if indicators.Divergences != nil {
 		aiSignal.DivergenceData = indicators.Divergences
+	}
+
+	// Agregar datos de Volume Profile a la respuesta para la UI
+	if indicators.VolumeProfile != nil {
+		aiSignal.VolumeProfileData = indicators.VolumeProfile
 	}
 
 	log.Printf("✅ [%s] Señal IA generada: %s (confianza: %d%%)", asset.Symbol, aiSignal.Signal, aiSignal.Confidence)
@@ -376,6 +384,31 @@ No se detectaron patrones de velas significativos en %s en los timeframes analiz
 `, asset.Symbol)
 	}
 
+	// Generar sección de Volume Profile (zonas institucionales)
+	volumeProfileSection := ""
+	if ind.VolumeProfile != nil && ind.VolumeProfile.POC > 0 {
+		volumeProfileSection = fmt.Sprintf(`
+
+=== VOLUME PROFILE (ZONAS INSTITUCIONALES) — %s ===
+%s
+IMPORTANTE sobre Volume Profile:
+- El POC es el precio con mayor volumen acumulado en 50 días → la zona MÁS importante.
+- El Value Area (70%% del volumen) define la zona de equilibrio institucional.
+- Precio ENCIMA del VAH = breakout alcista, las instituciones empujan al alza.
+- Precio DEBAJO del VAL = breakdown bajista, las instituciones empujan a la baja.
+- Los HVN (High Volume Nodes) son soportes/resistencias MUY fuertes (mucha liquidez acumulada).
+- Los LVN (Low Volume Nodes) son gaps de liquidez → el precio los cruza rápidamente.
+- USA los niveles de HVN para definir stop loss y take profit realistas.
+- INCLUYE el Volume Profile en tu análisis y en keyFactors.
+`, asset.Symbol, ind.VolumeProfile.SummaryAI)
+	} else {
+		volumeProfileSection = fmt.Sprintf(`
+
+=== VOLUME PROFILE ===
+No se pudo calcular el Volume Profile para %s (datos insuficientes).
+`, asset.Symbol)
+	}
+
 	// Generar sección de divergencias (señales anticipatorias)
 	divergenceSection := ""
 	if ind.Divergences != nil && len(ind.Divergences.Divergences) > 0 {
@@ -437,7 +470,7 @@ Posición Bollinger: %s
 
 === PUNTUACIÓN DEL SISTEMA ===
 Confluencia: %d/100 → %s
-%s%s%s
+%s%s%s%s
 === ÚLTIMAS 20 VELAS DIARIAS ===
 %s
 === INSTRUCCIONES ===
@@ -450,8 +483,9 @@ Confluencia: %d/100 → %s
 7. CONFLUENCIA MULTI-TIMEFRAME: Si los patrones coinciden en 1day + 4h + 1h (triple confluencia), la señal es MUY fuerte.
 8. SENTIMIENTO (FEAR & GREED): Este índice es EXCLUSIVO del activo analizado. El sentimiento CONFIRMA la dirección: Miedo (0-40) = CONFIRMA presión bajista → más probabilidad de VENTA. Codicia (60-100) = CONFIRMA presión alcista → más probabilidad de COMPRA. Si el sentimiento es Miedo y los indicadores son bajistas, AUMENTA tu confidence en VENTA. Si el sentimiento es Codicia y los indicadores son alcistas, AUMENTA tu confidence en COMPRA. Si hay contradicción (miedo + indicadores alcistas, o codicia + indicadores bajistas), BAJA tu confidence y considera MANTENER. INCLUYE el sentimiento en tu análisis y en keyFactors.
 9. DIVERGENCIAS: Las divergencias RSI/MACD vs Precio son señales ANTICIPATORIAS — detectan agotamiento de tendencia ANTES de que el precio reaccione. Si hay una divergencia alcista FUERTE + patrón de velas alcista = señal MUY anticipatoria de COMPRA. Si hay divergencia bajista FUERTE + RSI sobrecomprado = señal MUY anticipatoria de VENTA. INCLUYE las divergencias en tu análisis y en keyFactors.
-10. Sé HONESTO: si hay contradicción entre indicadores, patrones, sentimiento y divergencias, di "MANTENER".
-11. SL basado en ATR (2x ATR). TP con ratio mínimo 1:2.
+10. VOLUME PROFILE: El POC (Point of Control) es el precio con mayor volumen acumulado → el nivel MÁS importante. El Value Area (70%% del volumen) define dónde están las posiciones institucionales. Precio ENCIMA del VAH = breakout alcista fuerte. Precio DEBAJO del VAL = breakdown bajista fuerte. Los HVN son soportes/resistencias MUY fuertes. USA los niveles del Volume Profile para SL/TP más precisos. INCLUYE el Volume Profile en tu análisis y en keyFactors.
+11. Sé HONESTO: si hay contradicción entre indicadores, patrones, sentimiento, divergencias y volume profile, di "MANTENER".
+12. SL basado en ATR (2x ATR) o niveles HVN del Volume Profile. TP con ratio mínimo 1:2.
 
 === REGLA CRÍTICA: STOP LOSS Y TAKE PROFIT OBLIGATORIOS ===
 SIEMPRE proporciona valores numéricos concretos (mayor que 0) para stopLoss y takeProfit.
@@ -495,6 +529,8 @@ Responde EXCLUSIVAMENTE en JSON puro (sin markdown, sin backticks):
 		sentimentSection,
 		// Divergencias RSI/MACD (señales anticipatorias)
 		divergenceSection,
+		// Volume Profile (zonas institucionales)
+		volumeProfileSection,
 		// Velas raw
 		recentCandles.String(),
 	)

@@ -19,7 +19,7 @@ import {
   CheckCircle,
   CandlestickChart,
 } from 'lucide-react';
-import type { AISignal, Asset, PatternItem, DivergenceItem } from '../../types';
+import type { AISignal, Asset, PatternItem, DivergenceItem, VolumeNodeData } from '../../types';
 
 interface AISignalPanelProps {
   selectedAsset: Asset | null;
@@ -397,6 +397,123 @@ export default function AISignalPanel({
               </p>
             </div>
           )}
+
+          {/* ═══════════════════════════════════════════════════ */}
+          {/* Sección de Volume Profile (zonas institucionales)  */}
+          {/* ═══════════════════════════════════════════════════ */}
+          {aiSignal.volumeProfile && aiSignal.volumeProfile.poc > 0 && (() => {
+            const vp = aiSignal.volumeProfile!;
+            const price = aiSignal.entryPrice;
+            const isAboveVAH = price > vp.vah;
+            const isBelowVAL = price < vp.val;
+            const isAbovePOC = price > vp.poc;
+            const posLabel = isAboveVAH ? 'ENCIMA del Value Area → Breakout Alcista'
+              : isBelowVAL ? 'DEBAJO del Value Area → Breakdown Bajista'
+              : isAbovePOC ? 'Sobre POC dentro del Value Area → Sesgo Alcista'
+              : 'Bajo POC dentro del Value Area → Sesgo Bajista';
+            const posColor = isAboveVAH || isAbovePOC ? 'text-oscar-green' : 'text-oscar-red';
+
+            return (
+              <div className="bg-oscar-dark/40 border border-gray-800/50 rounded-lg p-4 animate-fade-in">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span className="text-base">📊</span>
+                    Volume Profile
+                    <span className="text-[9px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 px-1.5 py-0.5 rounded-full ml-1">
+                      INSTITUCIONAL
+                    </span>
+                  </h4>
+                  <span className={`text-[10px] font-bold ${posColor}`}>
+                    {isAboveVAH ? '▲ BREAKOUT' : isBelowVAL ? '▼ BREAKDOWN' : isAbovePOC ? '▲ ALCISTA' : '▼ BAJISTA'}
+                  </span>
+                </div>
+
+                {/* POC y Value Area */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="bg-oscar-dark/60 rounded-lg p-2 text-center">
+                    <span className="text-[9px] text-cyan-300 block">VAL (piso)</span>
+                    <span className="text-xs text-white font-mono font-bold">${vp.val.toFixed(2)}</span>
+                  </div>
+                  <div className="bg-cyan-500/10 border border-cyan-500/25 rounded-lg p-2 text-center">
+                    <span className="text-[9px] text-cyan-300 block">POC ⭐</span>
+                    <span className="text-sm text-cyan-200 font-mono font-bold">${vp.poc.toFixed(2)}</span>
+                  </div>
+                  <div className="bg-oscar-dark/60 rounded-lg p-2 text-center">
+                    <span className="text-[9px] text-cyan-300 block">VAH (techo)</span>
+                    <span className="text-xs text-white font-mono font-bold">${vp.vah.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Barra visual de posición del precio en el Value Area */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-[9px] mb-1">
+                    <span className="text-oscar-gray">${vp.val.toFixed(0)}</span>
+                    <span className={`font-bold ${posColor}`}>{posLabel}</span>
+                    <span className="text-oscar-gray">${vp.vah.toFixed(0)}</span>
+                  </div>
+                  <div className="relative w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                    {/* Value Area fill */}
+                    <div className="absolute h-full bg-cyan-500/20 rounded-full" style={{ left: '5%', right: '5%' }} />
+                    {/* POC marker */}
+                    {(() => {
+                      const range = vp.vah - vp.val;
+                      const pocPct = range > 0 ? ((vp.poc - vp.val) / range) * 90 + 5 : 50;
+                      const pricePct = range > 0 ? Math.min(100, Math.max(0, ((price - vp.val) / range) * 90 + 5)) : 50;
+                      return (
+                        <>
+                          <div className="absolute h-full w-0.5 bg-cyan-400" style={{ left: `${pocPct}%` }} />
+                          <div className={`absolute top-0 h-full w-1.5 rounded-full ${isAboveVAH || isAbovePOC ? 'bg-oscar-green' : 'bg-oscar-red'}`}
+                            style={{ left: `${pricePct}%`, transform: 'translateX(-50%)' }} />
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* HVNs - Zonas de alto volumen */}
+                {vp.hvns.length > 0 && (
+                  <div className="mb-2">
+                    <span className="text-[10px] font-bold text-white mb-1 block">🏦 Zonas de Alto Volumen (soportes/resistencias)</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {vp.hvns.slice(0, 4).map((hvn: VolumeNodeData, i: number) => {
+                        const isSupport = hvn.priceMid < price;
+                        return (
+                          <div key={i} className={`text-[10px] px-2 py-1 rounded-md border ${
+                            isSupport
+                              ? 'bg-oscar-green/8 border-oscar-green/25 text-oscar-green'
+                              : 'bg-oscar-red/8 border-oscar-red/25 text-oscar-red'
+                          }`}>
+                            <span className="font-mono font-bold">${hvn.priceMid.toFixed(2)}</span>
+                            <span className="ml-1 opacity-60">{isSupport ? '↑ soporte' : '↓ resistencia'}</span>
+                            <span className="ml-1 opacity-40">({hvn.percent.toFixed(1)}%)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* LVNs - Gaps de liquidez */}
+                {vp.lvns.length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-bold text-white mb-1 block">⚡ Gaps de Liquidez (precio se mueve rápido)</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {vp.lvns.slice(0, 3).map((lvn: VolumeNodeData, i: number) => (
+                        <div key={i} className="text-[10px] px-2 py-1 rounded-md border bg-oscar-gold/5 border-oscar-gold/20 text-oscar-gold">
+                          <span className="font-mono">${lvn.priceLow.toFixed(2)}-${lvn.priceHigh.toFixed(2)}</span>
+                          <span className="ml-1 opacity-50">({lvn.percent.toFixed(1)}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[8px] text-cyan-300/40 mt-2 leading-snug">
+                  📊 Volume Profile muestra dónde acumularon posiciones las instituciones en 50 días — el POC es el nivel más importante.
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Factores clave */}
           {aiSignal.keyFactors && aiSignal.keyFactors.length > 0 && (

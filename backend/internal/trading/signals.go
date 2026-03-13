@@ -30,6 +30,9 @@
 //	DIVERGENCIAS (peso máximo: ±10)
 //	  - Divergencias RSI/MACD:   ±10
 //
+//	VOLUME PROFILE (peso máximo: ±8)
+//	  - Precio vs POC/Value Area: ±8
+//
 // Verificación multi-categoría:
 //
 //	Antes de emitir COMPRA o VENTA, al menos 3 de 4 categorías
@@ -312,6 +315,34 @@ func ScoreSignal(ind models.IndicatorValues, currentPrice float64) (int, string,
 			reasons = append(reasons, fmt.Sprintf("Divergencia(s) ALCISTA(s) detectada(s) → señal anticipatoria de rebote (+%d pts)", divAdjust))
 		} else if divAdjust < 0 {
 			reasons = append(reasons, fmt.Sprintf("Divergencia(s) BAJISTA(s) detectada(s) → señal anticipatoria de caída (%d pts)", divAdjust))
+		}
+	}
+
+	// ============================================
+	// 14. VOLUME PROFILE - POC & Value Area (peso: ±8)
+	//     Precio vs zonas de acumulación institucional
+	//     Encima del VAH = breakout alcista (instituciones empujan)
+	//     Debajo del VAL = breakdown bajista
+	//     En el POC = máxima indecisión
+	// ============================================
+	if ind.VolumeProfile != nil && ind.VolumeProfile.POC > 0 {
+		vp := ind.VolumeProfile
+		if currentPrice > vp.VAH {
+			// Precio sobre Value Area = breakout alcista fuerte
+			score += 8
+			reasons = append(reasons, fmt.Sprintf("Precio ENCIMA del Value Area ($%.2f > VAH $%.2f) → breakout alcista, zonas institucionales como soporte [+8]", currentPrice, vp.VAH))
+		} else if currentPrice < vp.VAL {
+			// Precio bajo Value Area = breakdown bajista fuerte
+			score -= 8
+			reasons = append(reasons, fmt.Sprintf("Precio DEBAJO del Value Area ($%.2f < VAL $%.2f) → breakdown bajista, zonas institucionales como resistencia [-8]", currentPrice, vp.VAL))
+		} else if currentPrice > vp.POC {
+			// Dentro del VA pero encima del POC = sesgo alcista leve
+			score += 3
+			reasons = append(reasons, fmt.Sprintf("Precio sobre POC ($%.2f > $%.2f) dentro del Value Area → sesgo alcista moderado [+3]", currentPrice, vp.POC))
+		} else {
+			// Dentro del VA pero debajo del POC = sesgo bajista leve
+			score -= 3
+			reasons = append(reasons, fmt.Sprintf("Precio bajo POC ($%.2f < $%.2f) dentro del Value Area → sesgo bajista moderado [-3]", currentPrice, vp.POC))
 		}
 	}
 
